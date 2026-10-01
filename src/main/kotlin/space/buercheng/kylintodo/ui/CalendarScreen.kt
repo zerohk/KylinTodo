@@ -38,9 +38,9 @@ import androidx.compose.ui.unit.sp
 import space.buercheng.kylintodo.domain.CalendarViewMode
 
 /** 布局探针开关：仅在 -Dkylintodo.probe=true 时输出测量结果，用于排查布局问题。 */
-private val PROBE_ENABLED: Boolean = System.getProperty("kylintodo.probe") == "true"
+internal val PROBE_ENABLED: Boolean = System.getProperty("kylintodo.probe") == "true"
 
-private fun probeLog(message: String) {
+internal fun probeLog(message: String) {
     if (PROBE_ENABLED) println("[PROBE] $message")
 }
 
@@ -88,9 +88,11 @@ fun CalendarScreen(viewModel: AppViewModel) {
                         .padding(6.dp)
                         .probe("日历列"),
                 ) {
-                    if (viewModel.viewMode == CalendarViewMode.DAY) {
-                        DayDetailHeader(day = viewModel.selectedCalendarDay)
-                    }
+                    // 三种视图统一为「一行七列的日期网格」：
+                    // 日/周视图 1 行，月视图 6 行，行高一致。
+                    // 原先日视图在此处插入 DayDetailHeader，会把网格挤成半屏，
+                    // 与"日视图也显示七天"的要求冲突，故移除；
+                    // 选中日的详细信息改由双击弹出的日期详情窗口呈现。
                     CalendarGrid(
                         page = viewModel.page,
                         today = viewModel.today,
@@ -98,6 +100,7 @@ fun CalendarScreen(viewModel: AppViewModel) {
                         showTodoCount = true,
                         onSelectDate = viewModel::selectDate,
                         onAddTodo = viewModel::openAddTodo,
+                        onOpenDayInfo = viewModel::openDayInfo,
                         modifier = Modifier.weight(1f).probe("日历网格"),
                     )
                 }

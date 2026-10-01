@@ -43,6 +43,18 @@ dependencies {
     implementation("cn.6tail:lunar:1.7.7")
 
     testImplementation(kotlin("test"))
+
+    // Compose 桌面端 UI 测试支持（无头运行，不需要真实鼠标输入）。
+    // 用途：验证弹窗、输入校验等交互逻辑 —— 这些路径无法用合成鼠标事件
+    // 可靠驱动，但可以通过 Compose 的测试框架直接操作语义树。
+    // 该库被标注为实验性，需要显式 opt-in。
+    //
+    // createComposeRule() 返回的是 JUnit4 的 TestRule，因此必须同时提供
+    // JUnit Vintage 引擎，否则 useJUnitPlatform() 只会发现 Jupiter 测试，
+    // 表现为 "No tests found for given includes"。
+    @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+    testImplementation(compose.desktop.uiTestJUnit4)
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.1")
 }
 
 tasks.test {

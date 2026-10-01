@@ -47,6 +47,13 @@ interface TodoRepository {
     /** 读取指定日期的全部待办，按创建时间升序。 */
     fun findByDate(date: LocalDate): List<TodoItem>
 
+    /**
+     * 读取指定日期区间内的待办，按日期与创建时间升序。
+     *
+     * 供「日详情弹窗」在自身范围（7 天）内展示已有待办使用。
+     */
+    fun findByDateRange(start: LocalDate, end: LocalDate): List<TodoItem>
+
     /** 读取指定日期区间内的待办数量统计，键为日期。 */
     fun countByDateRange(start: LocalDate, end: LocalDate): Map<LocalDate, Int>
 

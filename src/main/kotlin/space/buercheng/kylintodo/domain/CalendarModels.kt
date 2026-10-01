@@ -73,19 +73,30 @@ data class CalendarDay(
 }
 
 /**
- * 一个完整的日历页（月视图 42 天 / 周视图 7 天 / 日视图 1 天）。
+ * 一个完整的日历页。
+ *
+ * 三种视图统一为**一行七列**的日期网格：
+ *  - 月视图：6 行 × 7 列 = 42 天
+ *  - 周视图：1 行 × 7 列 = 7 天
+ *  - 日视图：1 行 × 7 列 = 7 天（该日所在自然周，选中日高亮）
  */
 data class CalendarPage(
     val mode: CalendarViewMode,
     /** 该页锚定的日期，用于标题与前后翻页 */
     val anchor: LocalDate,
-    /** 按行优先排列的格子。月视图固定 42 个，周视图 7 个，日视图 1 个 */
+    /** 按行优先排列的格子。月视图 42 个，周/日视图 7 个 */
     val days: List<CalendarDay>,
 ) {
-    /** 每行显示的天数：月视图 7 列。 */
-    val columns: Int get() = if (mode == CalendarViewMode.DAY) 1 else 7
+    /**
+     * 每行显示的天数。
+     *
+     * 恒为 7：早先这里对日视图返回 1（"日视图只显示一天"的旧设计），
+     * 会导致行数被算成 42，进而使行高被压成十几 dp，格子变成细条。
+     * 需求已明确三种视图都以一行七列呈现，故不再区分。
+     */
+    val columns: Int get() = 7
 
-    /** 行数：月视图固定 6 行（42 天）。 */
+    /** 行数：月视图 6 行，周/日视图 1 行。 */
     val rows: Int get() = if (days.isEmpty()) 0 else (days.size + columns - 1) / columns
 }
 
@@ -149,15 +160,24 @@ object CalendarGridBuilder {
         return CalendarPage(CalendarViewMode.WEEK, anchor, days)
     }
 
-    /** 构建日视图：仅 [date] 一天。 */
+    /**
+     * 构建日视图：仍然输出 7 天（[date] 所在自然周）。
+     *
+     * 之所以不是"仅一天"：需求要求日视图与周视图都以一行七列呈现，
+     * 且行高与月视图保持一致。若只输出一天，单格会被拉伸填满整个高度，
+     * 与其余视图的格子尺寸不一致。选中态仍由 [date] 高亮体现。
+     */
     fun buildDay(
         date: LocalDate,
         dayEnricher: (LocalDate) -> DayEnrichment = { DayEnrichment() },
-    ): CalendarPage = CalendarPage(
-        mode = CalendarViewMode.DAY,
-        anchor = date,
-        days = listOf(buildDay(date, inCurrentPeriod = true, dayEnricher)),
-    )
+    ): CalendarPage {
+        val weekStart = date.startOfWeekMonday()
+        val days = (0 until WEEK_CELL_COUNT).map { offset ->
+            val d = weekStart.plusDays(offset.toLong())
+            buildDay(d, inCurrentPeriod = true, dayEnricher)
+        }
+        return CalendarPage(CalendarViewMode.DAY, date, days)
+    }
 
     private fun buildDay(
         date: LocalDate,

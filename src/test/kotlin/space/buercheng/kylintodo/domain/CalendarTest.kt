@@ -137,10 +137,38 @@ class CalendarGridBuilderTest {
     }
 
     @Test
-    fun `日视图仅输出一天`() {
-        val page = CalendarGridBuilder.buildDay(LocalDate.of(2026, 10, 1))
-        assertEquals(1, page.days.size)
-        assertEquals(LocalDate.of(2026, 10, 1), page.days.first().date)
+    fun `日视图输出该日所在的一整周七天`() {
+        // 需求变更：日视图与周视图同样以"一行七列"呈现，行高与月视图一致。
+        // 因此日视图输出 7 天，而不是仅 1 天。
+        val page = CalendarGridBuilder.buildDay(LocalDate.of(2026, 10, 1)) // 周四
+        assertEquals(7, page.days.size)
+        assertEquals(7, page.columns)
+        assertEquals(1, page.rows)
+        // 周一至周日
+        assertEquals(LocalDate.of(2026, 9, 28), page.days.first().date)
+        assertEquals(LocalDate.of(2026, 10, 4), page.days.last().date)
+        // 锚定日仍为传入的日期，用于标题与翻页
+        assertEquals(LocalDate.of(2026, 10, 1), page.anchor)
+        // 选中的那一天必须在列表里，否则高亮无从体现
+        assertTrue(page.days.any { it.date == LocalDate.of(2026, 10, 1) })
+    }
+
+    @Test
+    fun `三种视图的列数一致为七`() {
+        // 这是"日/周视图行高与月视图一致"的前提：
+        // 行高 = 可用高度 / (42 / columns)。若日视图 columns 为 1，
+        // 行数会被算成 42，行高被压成十几 dp，格子变成细条。
+        val month = CalendarGridBuilder.buildMonth(YearMonth.of(2026, 10))
+        val week = CalendarGridBuilder.buildWeek(LocalDate.of(2026, 10, 1))
+        val day = CalendarGridBuilder.buildDay(LocalDate.of(2026, 10, 1))
+
+        assertEquals(7, month.columns)
+        assertEquals(7, week.columns)
+        assertEquals(7, day.columns)
+
+        assertEquals(6, month.rows)
+        assertEquals(1, week.rows)
+        assertEquals(1, day.rows)
     }
 
     @Test

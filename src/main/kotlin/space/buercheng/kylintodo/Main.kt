@@ -15,6 +15,7 @@ import space.buercheng.kylintodo.domain.CalendarViewMode
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.ui.AddTodoDialog
 import space.buercheng.kylintodo.ui.CalendarScreen
+import space.buercheng.kylintodo.ui.DayInfoDialog
 import space.buercheng.kylintodo.ui.AppViewModel
 import space.buercheng.kylintodo.ui.KylinTodoTheme
 import space.buercheng.kylintodo.ui.configureFontRendering
@@ -72,9 +73,33 @@ fun main(args: Array<String>) {
             onCloseRequest = ::exitApplication,
             title = "麒麟日历 · KylinTodo",
             state = windowState,
+            // 允许用鼠标拖拽边框缩放。Compose Desktop 默认即为 true，
+            // 这里显式写出以免后续误改。
+            //
+            // 注意：Compose 1.7.3 的 WindowState 没有 minimumSize 属性
+            // （javap 确认只有 placement / minimized / position / size），
+            // 因此不设最小尺寸。布局本身是全自适应的 —— 日历列用 weight(1f)
+            // 吸收多余宽度，侧栏固定 300dp，行高按可用高度除以 6 计算，
+            // 窗口拉大拉小都不会出现滚动条或错位。
+            resizable = true,
         ) {
             KylinTodoTheme {
                 CalendarScreen(viewModel = viewModel)
+
+                // 日期详情弹窗：双击日历中的某一天弹出，
+                // 显示该日已添加的待办，并可继续添加（双击弹窗或点「+」）
+                viewModel.dayInfoDate?.let { infoDate ->
+                    DayInfoDialog(
+                        selectedDate = infoDate,
+                        weekDays = viewModel.dayInfoWeekDays,
+                        todosOfSelectedDate = viewModel.dayInfoTodos,
+                        todosOfOtherDays = viewModel.dayInfoOtherTodos,
+                        onDismiss = viewModel::dismissDayInfo,
+                        onToggleTodo = viewModel::toggleCompleted,
+                        onDeleteTodo = viewModel::deleteTodo,
+                        onAddTodoForDate = viewModel::openAddTodo,
+                    )
+                }
 
                 // 添加待办弹窗：目标日期来自格子的「+」、工具栏或侧栏入口
                 viewModel.addTodoTargetDate?.let { targetDate ->

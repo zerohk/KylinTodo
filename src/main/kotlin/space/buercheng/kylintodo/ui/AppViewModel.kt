@@ -71,6 +71,26 @@ class AppViewModel(
     var addTodoTargetDate: LocalDate? by mutableStateOf(null)
         private set
 
+    /**
+     * 日期详情弹窗的目标日期；为 null 表示弹窗关闭。
+     *
+     * 对应需求变更：双击日历中的某一天弹出该窗口，可查看/添加该日待办。
+     */
+    var dayInfoDate: LocalDate? by mutableStateOf(null)
+        private set
+
+    /** 详情弹窗中当前展示那一周的日期。 */
+    var dayInfoWeekDays: List<CalendarDay> by mutableStateOf(emptyList())
+        private set
+
+    /** 详情弹窗中选中日的待办。 */
+    var dayInfoTodos: List<TodoItem> by mutableStateOf(emptyList())
+        private set
+
+    /** 详情弹窗中同周其余日期的待办，键为日期。 */
+    var dayInfoOtherTodos: Map<LocalDate, List<TodoItem>> by mutableStateOf(emptyMap())
+        private set
+
     init {
         refresh()
     }
@@ -155,6 +175,46 @@ class AppViewModel(
     /** 关闭添加待办弹窗。 */
     fun dismissAddTodo() {
         addTodoTargetDate = null
+    }
+
+    // ---------------- 日期详情弹窗（双击日期触发） ----------------
+
+    /**
+     * 打开日期详情弹窗。
+     *
+     * 对应需求变更：双击日历中的某一天 → 弹出窗口显示该日已添加的待办
+     * （无则为空），并可在窗口内继续添加。
+     */
+    fun openDayInfo(date: LocalDate) {
+        selectedDate = date
+        dayInfoDate = date
+        // refresh() 内部会在 dayInfoDate 非空时同步刷新弹窗数据，
+        // 因此这里不需要再单独调用 refreshDayInfo()。
+        refresh()
+    }
+
+    /** 关闭日期详情弹窗。 */
+    fun dismissDayInfo() {
+        dayInfoDate = null
+    }
+
+    /**
+     * 刷新详情弹窗的数据。
+     *
+     * 新增/勾选/删除待办后都必须调用，否则弹窗内容不会跟着变。
+     */
+    private fun refreshDayInfo() {
+        val date = dayInfoDate ?: return
+        val weekStart = date.startOfWeekMonday()
+        val weekEnd = weekStart.plusDays(6)
+
+        dayInfoWeekDays = CalendarGridBuilder.buildWeek(date).days
+        dayInfoTodos = repository.findByDate(date)
+
+        // 同周其余日期的待办，按日期分组
+        dayInfoOtherTodos = repository.findByDateRange(weekStart, weekEnd)
+            .filter { it.date != date }
+            .groupBy { it.date }
     }
 
     /**
@@ -272,6 +332,11 @@ class AppViewModel(
         selectedDateTodos = repository.findByDate(selectedDate)
         selectedDayEnrichment = lunarService.describe(selectedDate)
             .copy(todoCount = selectedDateTodos.size)
+
+        // 5. 若日期详情弹窗处于打开状态，同步刷新其内容。
+        //    放在这里而不是每个增删改方法里单独调用，避免遗漏 —— 任何
+        //    数据变更都会走 refresh()，弹窗内容因此总能保持一致。
+        if (dayInfoDate != null) refreshDayInfo()
     }
 
     /**

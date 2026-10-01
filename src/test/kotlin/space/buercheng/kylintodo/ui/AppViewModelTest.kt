@@ -19,6 +19,10 @@ private class InMemoryTodoRepository : TodoRepository {
     override fun findByDate(date: LocalDate) =
         items.filter { it.date == date }.sortedBy { it.createdAt }
 
+    override fun findByDateRange(start: LocalDate, end: LocalDate) =
+        items.filter { !it.date.isBefore(start) && !it.date.isAfter(end) }
+            .sortedWith(compareBy({ it.date }, { it.createdAt }))
+
     override fun countByDateRange(start: LocalDate, end: LocalDate) =
         items.filter { !it.date.isBefore(start) && !it.date.isAfter(end) }
             .groupingBy { it.date }.eachCount()
@@ -95,11 +99,17 @@ class AppViewModelTest {
     }
 
     @Test
-    fun `切换到日视图产出1天`() {
+    fun `切换到日视图产出该日所在的一周`() {
         val vm = vm()
         vm.changeViewMode(CalendarViewMode.DAY)
-        assertEquals(1, vm.page.days.size)
-        assertEquals(fixedToday, vm.page.days.first().date)
+        // 需求变更：日视图同样是一行七列，行高与月视图一致
+        assertEquals(7, vm.page.days.size)
+        assertEquals(7, vm.page.columns)
+        assertEquals(1, vm.page.rows)
+        assertEquals(1, vm.page.days.first().date.dayOfWeek.value, "首列应为周一")
+        assert(
+            vm.page.days.any { it.date == fixedToday }
+        ) { "选中日应包含在周内: $fixedToday" }
     }
 
     @Test

@@ -21,10 +21,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import space.buercheng.kylintodo.domain.TodoItem
 import java.time.LocalDate
+
+/**
+ * 待办输入框的测试标签。
+ *
+ * 之所以用 testTag 而不是依赖 placeholder 文本：placeholder 在输入内容后
+ * 就会从语义树上消失，靠它定位会使测试在"输入之后"的步骤全部失败。
+ */
+const val TODO_INPUT_TAG = "todo-input"
 
 /**
  * 待办添加弹窗。
@@ -78,7 +87,8 @@ fun AddTodoDialog(
                     onValueChange = { text = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester),
+                        .focusRequester(focusRequester)
+                        .testTag(TODO_INPUT_TAG),
                     placeholder = { Text("输入待办内容") },
                     singleLine = false,
                     maxLines = 3,

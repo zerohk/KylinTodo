@@ -66,6 +66,25 @@ class SqliteTodoRepository(private val dbPath: Path) : TodoRepository {
         }
     }
 
+    override fun findByDateRange(start: LocalDate, end: LocalDate): List<TodoItem> =
+        synchronized(lock) {
+            connection.prepareStatement(
+                """
+                SELECT id, text, is_completed, created_at, date
+                FROM todo WHERE date BETWEEN ? AND ?
+                ORDER BY date ASC, created_at ASC
+                """.trimIndent()
+            ).use { ps ->
+                ps.setString(1, start.toString())
+                ps.setString(2, end.toString())
+                ps.executeQuery().use { rs ->
+                    buildList {
+                        while (rs.next()) add(rs.toTodoItem())
+                    }
+                }
+            }
+        }
+
     override fun countByDateRange(start: LocalDate, end: LocalDate): Map<LocalDate, Int> =
         synchronized(lock) {
             connection.prepareStatement(

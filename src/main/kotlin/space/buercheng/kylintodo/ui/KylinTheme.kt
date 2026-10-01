@@ -27,8 +27,16 @@ private val KylinBlueContainer = Color(0xFFA8CCF0)
 /** 节假日「休」角标颜色 —— 中国日历惯例用红色表示休息日。 */
 val HolidayRed = Color(0xFFD32F2F)
 
-/** 调休「班」角标颜色 —— 用中性灰蓝区别于放假。 */
-val WorkdayGray = Color(0xFF5F6B7A)
+/**
+ * 调休「班」角标颜色 —— 绿色。
+ *
+ * 原先用中性灰蓝，但灰色与禁用态视觉上难以区分，
+ * 绿色能明确表达"这天虽然看着像周末，实际要上班"。
+ */
+val WorkdayGreen = Color(0xFF2E7D32)
+
+/** 兼容旧命名，避免遗漏引用点。 */
+val WorkdayGray = WorkdayGreen
 
 /** 节气文字颜色。 */
 val SolarTermGreen = Color(0xFF2E7D32)

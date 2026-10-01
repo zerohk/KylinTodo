@@ -53,6 +53,8 @@ fun CalendarCell(
     showTodoCount: Boolean,
     onSelect: (LocalDate) -> Unit,
     onAddTodo: (LocalDate) -> Unit,
+    /** 双击格子弹出日期详情（对应需求变更） */
+    onOpenDayInfo: (LocalDate) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -71,7 +73,11 @@ fun CalendarCell(
                 },
                 shape = RoundedCornerShape(6.dp),
             )
-            .clickable { onSelect(day.date) },
+            // 单击选中该日；双击弹出日期详情窗口
+            .singleOrDoubleClick(
+                onClick = { onSelect(day.date) },
+                onDoubleClick = { onOpenDayInfo(day.date) },
+            ),
         color = when {
             isToday -> scheme.primaryContainer.copy(alpha = 0.45f)
             else -> scheme.surface
@@ -160,12 +166,12 @@ private fun DayNumber(
 /**
  * 节假日相关的日期颜色。
  *
- * 中国日历惯例：法定放假与周末用红色，调休上班用中性色。
+ * 中国日历惯例：法定放假用红色，调休上班用绿色（表示这天要上班）。
  */
 @Composable
 private fun holidayAwareDayColor(day: CalendarDay): Color = when (day.dayType) {
     DayType.HOLIDAY -> HolidayRed
-    DayType.WORKDAY -> WorkdayGray
+    DayType.WORKDAY -> WorkdayGreen
     DayType.NORMAL -> MaterialTheme.colorScheme.onSurface
 }
 
@@ -173,25 +179,30 @@ private fun holidayAwareDayColor(day: CalendarDay): Color = when (day.dayType) {
  * 「休」/「班」角标。
  *
  * 需求 F-01 要求显示中国大陆节假日「包括调休」，调休的本质就是
- * 周末需要上班，因此用一个显式的「班」字标注，避免用户误以为周末都休息。
+ * 周末需要上班，因此用绿色「班」字明确标注；法定放假用红色「休」字。
+ *
+ * 尺寸说明：中文单字（如「休」）的墨迹几乎占满字身，原先 14dp 方框配
+ * 9sp 字号会把字形裁掉一角，看起来"字没显示完整"。这里放大到 16dp 并
+ * 让字号与框高保持足够余量。
  */
 @Composable
 private fun DayTypeBadge(type: DayType) {
     val (label, color) = when (type) {
         DayType.HOLIDAY -> "休" to HolidayRed
-        DayType.WORKDAY -> "班" to WorkdayGray
+        DayType.WORKDAY -> "班" to WorkdayGreen
         DayType.NORMAL -> return
     }
     Box(
         modifier = Modifier
-            .size(14.dp)
+            .size(16.dp)
             .clip(RoundedCornerShape(3.dp))
             .background(color),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            fontSize = 9.sp,
+            fontSize = 10.sp,
+            lineHeight = 10.sp,
             color = Color.White,
             fontWeight = FontWeight.Bold,
         )
