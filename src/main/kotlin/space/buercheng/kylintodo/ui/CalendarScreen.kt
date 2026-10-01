@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
@@ -170,6 +171,23 @@ private fun CalendarToolbar(viewModel: AppViewModel, modifier: Modifier = Modifi
         }
 
         Box(modifier = Modifier.weight(1f))
+
+        // 桌面小窗开关（需求第 5 条方案 A）
+        OutlinedButton(
+            onClick = viewModel::toggleWidget,
+            modifier = Modifier.padding(end = 8.dp),
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = null,
+                modifier = Modifier.size(15.dp),
+            )
+            Text(
+                text = if (viewModel.widgetVisible) "关闭小窗" else "桌面小窗",
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
 
         ViewModeSwitcher(
             current = viewModel.viewMode,

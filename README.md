@@ -90,8 +90,32 @@ Windows 下把 `./gradlew` 换成 `.\gradlew.bat`。
 ./gradlew run --args="--view=week"                        # 指定启动视图
 ./gradlew run --args="--view=day --date=2026-10-01"       # 指定视图与锚定日期
 ./gradlew run --args="--seed=买牛奶@2026-10-01"            # 插入一条待办后启动
+./gradlew run --args="--widget"                           # 启动即打开桌面小窗
 ./gradlew run -Pprobe                                     # 输出容器实测尺寸，排查布局问题
 ```
+
+> 注意：`--args` 的值含空格时需整体加引号，否则 Gradle 会把后半段当成自己的选项。
+> PowerShell 示例：`gradlew.bat run "--args=--widget --seed=测试"`
+
+## 桌面小窗（小组件）
+
+主界面工具栏的「**桌面小窗**」按钮可打开一个常驻小窗，显示当前选中日期的待办：
+
+- 无系统边框，顶部标题条即拖动把手（可拖到任意位置）
+- 置顶显示，不会被其他窗口完全遮住
+- 可直接勾选完成、删除待办，也可新增
+- 与主窗口共用同一份状态与数据库，两处数据始终一致
+- 右上角按钮：打开主窗口 / 关闭小窗
+
+### 为什么不做成 UKUI 面板插件
+
+银河麒麟 V10 使用 **UKUI** 桌面，它**没有**类似 Android AppWidget 或 Windows
+桌面小组件的通用第三方接口。要真正嵌入面板，需单独编写依赖麒麟专有 API 的
+panel applet（通常为 C/Python + GTK），那是一个独立项目，且无法在 Windows 上
+开发验证。
+
+因此这里采用「无边框 + 置顶 + 可拖动」的独立小窗方案，跨桌面环境（UKUI /
+GNOME / KDE / Windows）通用，行为可预期。
 
 ## 构建环境要求
 
@@ -218,8 +242,12 @@ DSH-Kylin/
     │       ├── CalendarScreen.kt         # 主界面骨架
     │       ├── CalendarGrid.kt           # 日/周/月网格与日详情头
     │       ├── CalendarCell.kt           # 单个格子
+    │       ├── ClickGestures.kt          # 单击/双击组合手势
     │       ├── TodoList.kt               # 待办列表
     │       ├── AddTodoDialog.kt          # 添加待办弹窗
+    │       ├── DayInfoDialog.kt          # 日期详情弹窗（双击日期触发）
+    │       ├── DesktopWidgetScreen.kt    # 桌面小窗界面
+    │       ├── WindowDrag.kt             # 无边框窗口拖动
     │       └── AppViewModel.kt           # 状态与业务编排
     └── test/kotlin/space/buercheng/kylintodo/
         ├── domain/                       # 网格、农历、模型测试

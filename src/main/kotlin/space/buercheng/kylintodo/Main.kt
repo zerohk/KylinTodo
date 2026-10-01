@@ -1,8 +1,10 @@
 package space.buercheng.kylintodo
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -14,11 +16,13 @@ import space.buercheng.kylintodo.data.SqliteTodoRepository
 import space.buercheng.kylintodo.domain.CalendarViewMode
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.ui.AddTodoDialog
+import space.buercheng.kylintodo.ui.AppViewModel
 import space.buercheng.kylintodo.ui.CalendarScreen
 import space.buercheng.kylintodo.ui.DayInfoDialog
-import space.buercheng.kylintodo.ui.AppViewModel
+import space.buercheng.kylintodo.ui.DesktopWidgetScreen
 import space.buercheng.kylintodo.ui.KylinTodoTheme
 import space.buercheng.kylintodo.ui.configureFontRendering
+import space.buercheng.kylintodo.ui.nextWindowPosition
 import space.buercheng.kylintodo.ui.selectedChineseFontName
 import java.time.LocalDate
 
@@ -56,7 +60,10 @@ fun main(args: Array<String>) {
                 repository = repository,
                 todayProvider = { options.initialDate ?: LocalDate.now() },
                 initialViewMode = options.initialView ?: CalendarViewMode.MONTH,
-            )
+            ).also { vm ->
+                // 命令行要求时启动即打开桌面小窗（便于验证与日常使用）
+                if (options.widget) vm.changeWidgetVisibility(true)
+            }
         }
 
         // 窗口关闭时释放数据库连接，确保数据落盘
@@ -111,6 +118,77 @@ fun main(args: Array<String>) {
                 }
             }
         }
+
+        // ---------- 桌面小窗（需求第 5 条方案 A）----------
+        // 必须是主窗口的**兄弟**窗口，不能嵌套在 Window 的内容里。
+        if (viewModel.widgetVisible) {
+            DesktopWidgetWindow(viewModel = viewModel)
+        }
+    }
+}
+
+/**
+ * 无边框桌面小窗。
+ *
+ * ## 为什么用这种方式而不是 UKUI 面板插件
+ * 银河麒麟 V10 使用 UKUI 桌面，它没有类似 Android AppWidget 的通用第三方
+ * 小组件接口。真正嵌入面板需要单独编写依赖麒麟专有 API 的 applet（通常为
+ * C/Python + GTK），属于另一个项目且无法在 Windows 上验证。
+ * 这里采用「无边框 + 置顶 + 可拖动」的常驻小窗，跨桌面环境通用。
+ *
+ * ## 拖动实现
+ * 无边框窗口没有系统标题栏，拖动由 [windowDrag] 把指针位移累加到窗口位置。
+ * 指针事件是像素、而 WindowPosition 是 dp，因此需按 density 换算 ——
+ * 否则高分屏上拖动速度会明显偏离鼠标。
+ */
+@Composable
+private fun DesktopWidgetWindow(viewModel: AppViewModel) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+
+    val widgetState = rememberWindowState(
+        size = DpSize(300.dp, 400.dp),
+        position = WindowPosition(androidx.compose.ui.Alignment.TopEnd),
+    )
+
+    Window(
+        onCloseRequest = { viewModel.changeWidgetVisibility(false) },
+        state = widgetState,
+        title = "麒麟日历小窗",
+        // 无系统边框：小窗自带拖动把手与关闭按钮
+        undecorated = true,
+        // 置顶常驻，避免被其他窗口完全遮住而失去"小组件"的意义
+        alwaysOnTop = true,
+        // 小窗尺寸固定，避免误拖边框改变布局
+        resizable = false,
+    ) {
+        KylinTodoTheme {
+            DesktopWidgetScreen(
+                day = viewModel.selectedCalendarDay,
+                todos = viewModel.selectedDateTodos,
+                onToggle = viewModel::toggleCompleted,
+                onDelete = viewModel::deleteTodo,
+                onAdd = { viewModel.openAddTodo(viewModel.selectedDate) },
+                onOpenMain = { viewModel.changeWidgetVisibility(false) },
+                onClose = { viewModel.changeWidgetVisibility(false) },
+                onDrag = { dx, dy ->
+                    widgetState.position = nextWindowPosition(
+                        current = widgetState.position,
+                        deltaXPx = dx,
+                        deltaYPx = dy,
+                        density = density,
+                    )
+                },
+            )
+
+            // 小窗内同样可以使用添加弹窗（与主窗口共用同一份状态）
+            viewModel.addTodoTargetDate?.let { targetDate ->
+                AddTodoDialog(
+                    date = targetDate,
+                    onDismiss = viewModel::dismissAddTodo,
+                    onConfirm = { text -> viewModel.addTodo(text, targetDate) },
+                )
+            }
+        }
     }
 }
 
@@ -120,6 +198,8 @@ private data class LaunchOptions(
     val initialDate: LocalDate? = null,
     /** 调试用：启动时插入一条待办，便于验证持久化与自动加载 */
     val seedTodo: Pair<String, LocalDate>? = null,
+    /** 启动时即打开桌面小窗 */
+    val widget: Boolean = false,
 )
 
 /**
@@ -131,9 +211,13 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
     var view: CalendarViewMode? = null
     var date: LocalDate? = null
     var seed: Pair<String, LocalDate>? = null
+    var widget = false
 
     args.forEach { arg ->
         when {
+            // 无值开关
+            arg == "--widget" -> widget = true
+
             arg.startsWith("--view=") -> {
                 view = when (arg.removePrefix("--view=").lowercase()) {
                     "day", "d" -> CalendarViewMode.DAY
@@ -161,5 +245,5 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             }
         }
     }
-    return LaunchOptions(view, date, seed)
+    return LaunchOptions(view, date, seed, widget)
 }

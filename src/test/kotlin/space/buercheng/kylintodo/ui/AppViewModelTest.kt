@@ -262,4 +262,45 @@ class AppViewModelTest {
         vm.changeViewMode(CalendarViewMode.WEEK)
         assertEquals(CalendarGridBuilder.WEEK_CELL_COUNT, vm.page.days.size)
     }
+
+    // ---------------- 桌面小窗（需求第 5 条方案 A） ----------------
+
+    @Test
+    fun `桌面小窗默认关闭且可切换`() {
+        val vm = vm()
+        assertTrue(!vm.widgetVisible, "默认不应自动弹出小窗，避免打扰")
+
+        vm.toggleWidget()
+        assertTrue(vm.widgetVisible)
+
+        vm.toggleWidget()
+        assertTrue(!vm.widgetVisible)
+    }
+
+    @Test
+    fun `桌面小窗可显式开关`() {
+        val vm = vm()
+        vm.changeWidgetVisibility(true)
+        assertTrue(vm.widgetVisible)
+        vm.changeWidgetVisibility(false)
+        assertTrue(!vm.widgetVisible)
+    }
+
+    @Test
+    fun `小窗展示的数据与主界面选中日一致`() {
+        // 小窗渲染 selectedCalendarDay 与 selectedDateTodos，
+        // 因此切换选中日后，小窗内容必须跟着变，否则两处数据会脱节
+        val vm = vm()
+        val target = vm.page.days[15].date
+        vm.selectDate(target)
+
+        assertEquals(target, vm.selectedCalendarDay.date)
+        vm.addTodo("小窗联动任务", target)
+        assertTrue(vm.selectedDateTodos.any { it.text == "小窗联动任务" })
+        assertEquals(
+            1,
+            vm.page.days.first { it.date == target }.todoCount,
+            "小窗与主界面共用同一份状态，角标也应同步",
+        )
+    }
 }

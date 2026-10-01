@@ -91,6 +91,30 @@ class AppViewModel(
     var dayInfoOtherTodos: Map<LocalDate, List<TodoItem>> by mutableStateOf(emptyMap())
         private set
 
+    /**
+     * 桌面小窗是否显示。
+     *
+     * 对应需求第 5 条（方案 A：无边框置顶小窗）。默认关闭，由用户从主窗口开启，
+     * 避免每次启动都弹出额外窗口打扰。
+     */
+    var widgetVisible: Boolean by mutableStateOf(false)
+        private set
+
+    /**
+     * 设置桌面小窗显示状态。
+     *
+     * 命名为 `changeWidgetVisibility` 而非 `setWidgetVisible`：后者会与
+     * [widgetVisible] 属性的私有 setter 产生 JVM 签名冲突。
+     */
+    fun changeWidgetVisibility(visible: Boolean) {
+        widgetVisible = visible
+    }
+
+    /** 切换桌面小窗显示状态。 */
+    fun toggleWidget() {
+        widgetVisible = !widgetVisible
+    }
+
     init {
         refresh()
     }
