@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -181,9 +182,16 @@ private fun holidayAwareDayColor(day: CalendarDay): Color = when (day.dayType) {
  * 需求 F-01 要求显示中国大陆节假日「包括调休」，调休的本质就是
  * 周末需要上班，因此用绿色「班」字明确标注；法定放假用红色「休」字。
  *
- * 尺寸说明：中文单字（如「休」）的墨迹几乎占满字身，原先 14dp 方框配
- * 9sp 字号会把字形裁掉一角，看起来"字没显示完整"。这里放大到 16dp 并
- * 让字号与框高保持足够余量。
+ * ## 为什么不用固定尺寸的方框
+ * 早先的实现是 `Box(Modifier.size(14.dp))` 里塞一个 9sp 的汉字。这类做法
+ * 在麒麟（Noto Sans CJK）与 Windows（微软雅黑）上表现不同 —— 中文字形的
+ * 实际墨迹高度与字体度量里的行高并不一致，某些字体下字身会超出方框，
+ * 被 `clip(RoundedCornerShape(...))` 裁掉一角，看起来"字没显示完整"。
+ *
+ * 放大方框只是把问题推后（换个字体或字号仍会复现）。这里改为**让文字
+ * 自己决定尺寸**：先用 `wrapContentSize(unbounded = true)` 解除父级传入的
+ * 最大宽度/高度约束，再对文字加 padding 形成底色块。这样无论系统字体
+ * 度量如何，字形都不会被裁剪。
  */
 @Composable
 private fun DayTypeBadge(type: DayType) {
@@ -194,15 +202,18 @@ private fun DayTypeBadge(type: DayType) {
     }
     Box(
         modifier = Modifier
-            .size(16.dp)
+            // 解除父级约束，避免文字被压到方框尺寸以下
+            .wrapContentSize(unbounded = true, align = Alignment.CenterStart)
             .clip(RoundedCornerShape(3.dp))
-            .background(color),
+            .background(color)
+            .padding(horizontal = 2.5.dp, vertical = 0.5.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
             fontSize = 10.sp,
-            lineHeight = 10.sp,
+            // 不写 lineHeight：显式把 lineHeight 设成等于 fontSize 会在部分
+            // 字体上裁掉字形的上下留白。交给字体自身度量更安全。
             color = Color.White,
             fontWeight = FontWeight.Bold,
         )
