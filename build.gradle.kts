@@ -34,3 +34,10 @@ compose.desktop {
         }
     }
 }
+
+kotlin {
+    // 与需求分析报告约定的开发环境一致（JDK 17/21）。
+    // 使用 toolchain 而非绝对路径，Gradle 会自动探测本机 JDK，
+    // 使 IDE 与命令行构建使用同一 Java 版本，且换机器无需改动。
+    jvmToolchain(21)
+}
