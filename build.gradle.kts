@@ -21,6 +21,32 @@ dependencies {
     // (in a separate module for demo project and in testMain).
     // With compose.desktop.common you will also lose @Preview functionality
     implementation(compose.desktop.currentOs)
+
+    // Material 3：需求 4.3 要求采用 Material 3 设计规范
+    implementation(compose.material3)
+    // Material 3 桌面端需要显式补充 icons，Compose 1.7 起不再随 material3 传递
+    implementation(compose.materialIconsExtended)
+
+    // 日期时间处理（避免直接依赖易错的 java.util.Calendar 做农历换算）
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+
+    // SQLite 持久化：需求 5.2 指定 SQLite。
+    // xerial sqlite-jdbc 自带多平台原生库，覆盖 Windows/Linux 的 x86_64 与 ARM64，
+    // 满足需求 2.2 中麒麟系统双架构的目标运行环境。
+    implementation("org.xerial:sqlite-jdbc:3.47.1.0")
+
+    // 农历 / 二十四节气 / 中国大陆法定节假日（含调休）。
+    // 注意坐标是 cn.6tail:lunar（Maven Central），不是 JitPack 的
+    // com.github.6tail:lunar-java。MIT 许可，零传递依赖。
+    // 选型依据见 docs/技术选型-农历日期库.md
+    // 节假日数据覆盖 2001-12-29 ~ 2026-10-10，越界返回 null 而不抛异常。
+    implementation("cn.6tail:lunar:1.7.7")
+
+    testImplementation(kotlin("test"))
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 compose.desktop {
