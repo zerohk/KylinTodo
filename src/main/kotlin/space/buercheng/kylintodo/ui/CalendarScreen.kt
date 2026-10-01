@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
@@ -144,7 +146,7 @@ private fun CalendarToolbar(viewModel: AppViewModel, modifier: Modifier = Modifi
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = viewModel::goPrevious) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "上一页")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一页")
             }
             Text(
                 text = viewModel.pageTitle,
@@ -154,7 +156,7 @@ private fun CalendarToolbar(viewModel: AppViewModel, modifier: Modifier = Modifi
                 color = MaterialTheme.colorScheme.onSurface,
             )
             IconButton(onClick = viewModel::goNext) {
-                Icon(Icons.Filled.ArrowForward, contentDescription = "下一页")
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一页")
             }
             OutlinedButton(
                 onClick = viewModel::goToday,

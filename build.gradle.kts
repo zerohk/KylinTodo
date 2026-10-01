@@ -57,6 +57,31 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "KylinTodo"
             packageVersion = "1.0.0"
+
+            // 显式声明运行时镜像需要的 JDK 模块。
+            //
+            // 这是必需的，不是可选优化：Compose 插件默认只把
+            // java.base / java.desktop / java.logging / jdk.crypto.ec 交给 jlink，
+            // 而 org.xerial:sqlite-jdbc 依赖 java.sql.DriverManager。
+            // 缺少 java.sql 时打包产物能启动 JVM，但一构造仓库就抛
+            // NoClassDefFoundError: java/sql/DriverManager，应用直接崩溃。
+            //
+            // 实测：未声明时运行时镜像为
+            //   java.base java.desktop java.logging jdk.crypto.ec
+            // 声明后为
+            //   java.base java.datatransfer java.xml java.prefs java.desktop
+            //   java.logging java.management java.security.sasl java.naming
+            //   java.transaction.xa java.sql jdk.crypto.ec
+            //
+            // modules() 会替换默认列表，但插件仍会先注入它自己的默认模块，
+            // 因此参数里基础模块会出现两次 —— 重复无害，jlink 会去重。
+            modules(
+                "java.sql",            // sqlite-jdbc 需要 DriverManager
+                "java.transaction.xa", // java.sql 的 XA 事务依赖
+                "java.naming",
+                "java.management",
+                "java.xml",
+            )
         }
     }
 }
