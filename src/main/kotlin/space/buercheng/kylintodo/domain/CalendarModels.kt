@@ -90,6 +90,15 @@ data class CalendarPage(
 }
 
 /**
+ * 中国日历惯例：以周一为一周之首。
+ *
+ * 该规则被网格计算与「本页日期范围」推导共同依赖，因此抽成共享扩展，
+ * 避免两处实现漂移导致待办角标或高亮落在错误的日期上。
+ */
+fun LocalDate.startOfWeekMonday(): LocalDate =
+    minusDays(((dayOfWeek.value - DayOfWeek.MONDAY.value) + 7) % 7L)
+
+/**
  * 纯公历的日历网格计算。
  *
  * 刻意不依赖任何农历库：农历 / 节气 / 节假日的信息由外部以 [dayEnricher]
@@ -115,9 +124,7 @@ object CalendarGridBuilder {
         dayEnricher: (LocalDate) -> DayEnrichment = { DayEnrichment() },
     ): CalendarPage {
         val firstOfMonth = month.atDay(1)
-        val gridStart = firstOfMonth.minusDays(
-            (firstOfMonth.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7L
-        )
+        val gridStart = firstOfMonth.startOfWeekMonday()
         val days = (0 until MONTH_CELL_COUNT).map { offset ->
             val date = gridStart.plusDays(offset.toLong())
             buildDay(date, inCurrentPeriod = YearMonth.from(date) == month, dayEnricher)
@@ -126,18 +133,15 @@ object CalendarGridBuilder {
     }
 
     /**
-     * 构建周视图：显示 [anchor] 所在周的最近 7 天。
+     * 构建周视图：显示 [anchor] 所在周的 7 天（周一至周日）。
      *
-     * "最近 7 天"按自然周理解 —— 即包含 [anchor] 的那一周（周一至周日），
-     * 这样与月视图的列对齐方式保持一致。
+     * 与月视图的列对齐方式保持一致，因此周视图的第 1 列恒为周一。
      */
     fun buildWeek(
         anchor: LocalDate,
         dayEnricher: (LocalDate) -> DayEnrichment = { DayEnrichment() },
     ): CalendarPage {
-        val weekStart = anchor.minusDays(
-            (anchor.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7L
-        )
+        val weekStart = anchor.startOfWeekMonday()
         val days = (0 until WEEK_CELL_COUNT).map { offset ->
             val date = weekStart.plusDays(offset.toLong())
             buildDay(date, inCurrentPeriod = true, dayEnricher)

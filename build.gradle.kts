@@ -51,7 +51,7 @@ tasks.test {
 
 compose.desktop {
     application {
-        mainClass = "MainKt"
+        mainClass = "space.buercheng.kylintodo.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
@@ -88,5 +88,13 @@ afterEvaluate {
         executable = launcher.get().metadata.installationPath
             .file("bin/java${if (System.getProperty("os.name").lowercase().contains("win")) ".exe" else ""}")
             .asFile.absolutePath
+    }
+
+    // 布局探针：gradlew run -Pprobe 时让应用输出容器实测尺寸，便于排查 UI 布局问题。
+    // 必须在 afterEvaluate 中查找 —— Compose 插件此时才注册 :run 任务。
+    if (project.hasProperty("probe")) {
+        tasks.named<JavaExec>("run") {
+            jvmArgs("-Dkylintodo.probe=true")
+        }
     }
 }
