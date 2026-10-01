@@ -36,13 +36,15 @@ class AppViewModel(
     private val lunarService: LunarService = LunarJavaService(),
     /** 供测试注入固定日期，生产环境使用系统当前日期 */
     private val todayProvider: () -> LocalDate = { LocalDate.now() },
+    /** 初始视图模式，默认月视图（需求 F-03） */
+    initialViewMode: CalendarViewMode = CalendarViewMode.MONTH,
 ) {
 
     /** 今天，用于高亮显示。 */
     val today: LocalDate get() = todayProvider()
 
     /** 当前视图模式，默认月视图（需求 F-03 要求主界面以月视图显示）。 */
-    var viewMode: CalendarViewMode by mutableStateOf(CalendarViewMode.MONTH)
+    var viewMode: CalendarViewMode by mutableStateOf(initialViewMode)
         private set
 
     /** 当前锚定日期，决定显示哪一月/周/日。 */
