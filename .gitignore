@@ -43,3 +43,28 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### 日志与临时文件 ###
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.hprof
+
+### 本地配置与密钥（切勿提交） ###
+.env
+.env.*
+!.env.example
+local.properties
+secrets.properties
+*.local
+*.pem
+*.p12
+*.jks
+*.keystore
+
+### 测试与覆盖率 ###
+/test-output/
+coverage/
+*.exec
