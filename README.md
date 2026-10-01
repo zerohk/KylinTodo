@@ -128,9 +128,47 @@ gradlew.bat packageMsi
 ./gradlew packageDeb
 ```
 
-产出 `build/compose/binaries/main/deb/kylintodo_1.0.0-1_amd64.deb`。
+产出 `build/compose/binaries/main/deb/kylintodo_1.0.0_amd64.deb`。
 
 前提条件：`dpkg-deb` 与 `fakeroot`（Kylin/Ubuntu 通常自带），以及 JDK 21。
+
+也可以直接用仓库脚本，它带依赖自检与产物校验：
+
+```bash
+./scripts/build-deb.sh
+```
+
+#### 已验证的构建结果
+
+在 Ubuntu 22.04 + OpenJDK 21 下实测构建通过（WSL 亦可）：
+
+| 项目 | 值 |
+| --- | --- |
+| 包名 | `kylintodo_1.0.0_amd64.deb` |
+| 架构 | `amd64` |
+| 体积 | 98.7 MB |
+| SHA256 | 见 `build/deb-output/*.sha256` |
+| 安装路径 | `/opt/kylintodo/`（含 `bin/KylinTodo` 与 `.desktop` 启动项） |
+| 运行时 | JBR 21，模块含 `java.sql` |
+
+包依赖由 jpackage 自动声明（`libgl1`、`libx11-6`、`libfreetype6`、`libasound2`、
+`xdg-utils` 等），在麒麟 V10 上 `sudo dpkg -i` 即可安装。
+
+#### 在 Windows 上借助 WSL 构建
+
+`packageDeb` 无法在 Windows 上交叉编译，但可以借助 WSL 完成真实 Linux 构建：
+
+```bash
+wsl -d Ubuntu-22.04 -u root -- apt-get install -y openjdk-21-jdk-headless
+wsl -d Ubuntu-22.04 -u root -- bash -c "tr -d '\r' < /mnt/e/Kotlin/DSH-Kylin/scripts/wsl-build-deb.sh | bash"
+```
+
+产物会被复制到 `build/deb-output/`，可直接拷到麒麟机器安装。
+
+> **行尾陷阱**：从 NTFS 工作区直接 `cp` 出来的 `gradlew` 是 CRLF 行尾，
+> Linux 下会报 `/bin/sh^M: bad interpreter` 而无法执行。`.gitattributes` 里的
+> `eol=lf` 只在 `git checkout` 时生效，直接复制会绕过它。
+> `scripts/wsl-build-deb.sh` 已在内部用 `tr -d '\r'` 处理。
 
 ### 运行时镜像的模块依赖（重要）
 
@@ -140,6 +178,12 @@ Compose 插件默认只把 `java.base` / `java.desktop` / `java.logging` / `jdk.
 `NoClassDefFoundError: java/sql/DriverManager`，应用闪退。
 
 这一点已在 `build.gradle.kts` 的 `nativeDistributions { modules(...) }` 中显式声明。
+
+> 补充：`--strip-native-commands` 是 Compose 插件固定传给 jlink 的参数，
+> 它会剥掉运行时镜像里的 `java.exe`/`javaw.exe`。这**不是**故障 ——
+> jpackage 生成的启动器直接用 `runtime/lib/server/jvm.dll` 起 JVM。
+> 排查此类问题时不要被“镜像里没有 java.exe”误导，应直接捕获启动器的
+> stdout/stderr 看真实异常。
 
 ## 目录结构
 
@@ -153,6 +197,9 @@ DSH-Kylin/
 ├── gradle.properties                     # kotlin.version / compose.version
 ├── settings.gradle.kts
 ├── gradlew / gradlew.bat
+├── scripts/
+│   ├── build-deb.sh                      # 麒麟/Linux 上构建 .deb（含依赖自检）
+│   └── wsl-build-deb.sh                  # 借助 WSL 在 Windows 上构建 .deb
 ├── docs/
 │   ├── 需求分析报告.md                    # 需求基准
 │   └── 技术选型-农历日期库.md             # 农历库选型依据与 API 验证
