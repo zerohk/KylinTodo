@@ -42,7 +42,9 @@ echo "    java   : $(java -version 2>&1 | head -1)"
 echo ""
 echo "=== 2. 构建 .deb ==="
 cd "$B" || exit 1
-./gradlew --no-daemon clean packageDeb --console=plain 2>&1 | tail -30
+# 注意：这里不用管道接 tail —— 实测管道会让 WSL 进程在构建完成后挂住不退出。
+# 输出直接打印，由调用方（PowerShell）自行截取尾部。
+./gradlew --no-daemon clean packageDeb --console=plain
 
 echo ""
 echo "=== 3. 校验产物 ==="
@@ -54,24 +56,24 @@ fi
 ls -lh "$DEB"
 echo ""
 echo "--- 包元信息 ---"
-dpkg-deb --info "$DEB" 2>/dev/null | grep -E "Package|Version|Architecture|Depends|Installed-Size"
+dpkg-deb --info "$DEB" 2>/dev/null | grep -E "Package|Version|Architecture|Installed-Size"
 echo ""
 echo "--- 运行时 Java 版本与模块（应包含 java.sql）---"
 TMP=$(mktemp -d)
 dpkg-deb --extract "$DEB" "$TMP" 2>/dev/null
 REL=$(find "$TMP" -name release -path '*runtime*' -print -quit)
 [ -n "$REL" ] && grep -E "^(JAVA_VERSION|MODULES)" "$REL"
-echo ""
-echo "--- 启动器与桌面项 ---"
-find "$TMP" -name "*.desktop" -o -path "*/bin/KylinTodo" -type f | sed "s|$TMP||"
 rm -rf "$TMP"
 
 echo ""
 echo "=== 4. 取回 Windows 工作区 ==="
 mkdir -p "$DEST"
-cp "$DEB" "$DEST/"
+cp -f "$DEB" "$DEST/"
 echo "    已复制到: E:\\Kotlin\\DSH-Kylin\\build\\deb-output\\$(basename "$DEB")"
 sha256sum "$DEST/$(basename "$DEB")" | tee "$DEST/$(basename "$DEB").sha256"
 echo ""
 echo "=== 完成 ==="
-echo "在麒麟系统上安装: sudo dpkg -i $(basename "$DEB")"
+echo "在麒麟系统上安装:"
+echo "  sudo dpkg -r kylintodo                                    # 先卸旧版"
+echo "  sudo dpkg -i $(basename "$DEB")                            # 装新版"
+echo "  sudo apt-get install -f                                   # 补齐依赖"
