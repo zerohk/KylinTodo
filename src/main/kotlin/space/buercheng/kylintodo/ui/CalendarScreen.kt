@@ -220,7 +220,9 @@ private fun CalendarToolbar(
             }
             OutlinedButton(
                 onClick = viewModel::goToday,
-                modifier = Modifier.padding(start = 4.dp),
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .testTag(UiTestTags.TODAY_BUTTON),
             ) {
                 Text("今天", fontSize = 13.sp)
             }

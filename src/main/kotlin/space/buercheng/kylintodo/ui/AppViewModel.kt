@@ -492,6 +492,24 @@ class AppViewModel(
      * 也不会重复推导网格边界。
      */
     private fun refresh() {
+        // 0. 不变式守卫：月视图下，锚点必须与选中日同月。
+        //
+        //    用户报告「点击今天也会跳到 2 月」—— 这类现象的本质是
+        //    "锚点被钉在某个旧月份，而选中日已经走到别处"，
+        //    属于**不变式被破坏**的状态。逐一排查所有变更路径都没能找到
+        //    破坏源（穷举测试、真实组件树 UI 测试、42 格网格复用测试
+        //    全部无法复现），因此改为在此处**强制维持**该不变式：
+        //    任何未知路径把两者弄到不同月份，都会在下一次刷新时被纠正，
+        //    而不会表现为"越点越退回旧月份"。
+        //
+        //    放在刷新最开始：取消选中日所在月后，后续的范围计算与格子
+        //    构造都基于修正后的锚点，不会产生"锚点与网格不同月"的中间态。
+        if (viewMode == CalendarViewMode.MONTH &&
+            YearMonth.from(anchorDate) != YearMonth.from(selectedDate)
+        ) {
+            anchorDate = selectedDate
+        }
+
         // 1. 先确定本页日期范围（不依赖待办数据）
         val (rangeStart, rangeEnd) = computeGridRange()
 
