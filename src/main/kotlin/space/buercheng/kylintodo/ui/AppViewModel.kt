@@ -11,6 +11,7 @@ import space.buercheng.kylintodo.domain.DayEnrichment
 import space.buercheng.kylintodo.domain.LunarJavaService
 import space.buercheng.kylintodo.domain.LunarService
 import space.buercheng.kylintodo.domain.TodoItem
+import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.TodoRepository
 import space.buercheng.kylintodo.domain.startOfWeekMonday
 import java.time.LocalDate
@@ -257,9 +258,16 @@ class AppViewModel(
      *
      * 复用 [TodoItem.createOrNull] 做校验并返回是否成功，
      * 保证 UI 与领域模型使用同一套规则（需求 3.2 异常流程）。
+     *
+     * 默认参数保证调用方（如桌面小窗、日详情弹窗）不传优先级与标签时行为不变。
      */
-    fun addTodo(text: String, date: LocalDate): Boolean {
-        val item = TodoItem.createOrNull(text, date) ?: return false
+    fun addTodo(
+        text: String,
+        date: LocalDate,
+        priority: TodoPriority = TodoPriority.NONE,
+        tags: Collection<String> = emptyList(),
+    ): Boolean {
+        val item = TodoItem.createOrNull(text, date, priority, tags) ?: return false
         repository.insert(item)
         refresh()
         return true

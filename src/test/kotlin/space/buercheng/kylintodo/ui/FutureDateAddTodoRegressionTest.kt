@@ -1,32 +1,12 @@
 package space.buercheng.kylintodo.ui
 
 import space.buercheng.kylintodo.domain.CalendarViewMode
-import space.buercheng.kylintodo.domain.TodoItem
-import space.buercheng.kylintodo.domain.TodoRepository
 import space.buercheng.kylintodo.domain.startOfWeekMonday
+import space.buercheng.kylintodo.testing.InMemoryTodoRepository
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-
-/** 内存仓库替身，供回归测试使用。 */
-private class MemRepo : TodoRepository {
-    private val items = mutableListOf<TodoItem>()
-    override fun findByDate(date: LocalDate) =
-        items.filter { it.date == date }.sortedBy { it.createdAt }
-    override fun findByDateRange(start: LocalDate, end: LocalDate) =
-        items.filter { !it.date.isBefore(start) && !it.date.isAfter(end) }
-            .sortedWith(compareBy({ it.date }, { it.createdAt }))
-    override fun countByDateRange(start: LocalDate, end: LocalDate) =
-        items.filter { !it.date.isBefore(start) && !it.date.isAfter(end) }
-            .groupingBy { it.date }.eachCount()
-    override fun insert(item: TodoItem) { items.add(item) }
-    override fun setCompleted(id: String, completed: Boolean) {
-        val i = items.indexOfFirst { it.id == id }
-        if (i >= 0) items[i] = items[i].copy(isCompleted = completed)
-    }
-    override fun delete(id: String) { items.removeAll { it.id == id } }
-}
 
 /**
  * 把日历翻到未来年份后添加待办，验证选中日期**不会**被重置回"今天"。
@@ -38,7 +18,7 @@ class FutureDateAddTodoRegressionTest {
     private val today = LocalDate.of(2026, 10, 1)
 
     private fun vm() = AppViewModel(
-        repository = MemRepo(),
+        repository = InMemoryTodoRepository(),
         todayProvider = { today },
     )
 

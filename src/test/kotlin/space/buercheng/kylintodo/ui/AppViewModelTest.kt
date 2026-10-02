@@ -3,41 +3,15 @@ package space.buercheng.kylintodo.ui
 import space.buercheng.kylintodo.domain.CalendarGridBuilder
 import space.buercheng.kylintodo.domain.CalendarViewMode
 import space.buercheng.kylintodo.domain.DayType
-import space.buercheng.kylintodo.domain.TodoItem
+import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.TodoRepository
+import space.buercheng.kylintodo.testing.InMemoryTodoRepository
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-
-/** 测试用内存仓库，避免 UI 状态测试依赖 SQLite。 */
-private class InMemoryTodoRepository : TodoRepository {
-    private val items = mutableListOf<TodoItem>()
-
-    override fun findByDate(date: LocalDate) =
-        items.filter { it.date == date }.sortedBy { it.createdAt }
-
-    override fun findByDateRange(start: LocalDate, end: LocalDate) =
-        items.filter { !it.date.isBefore(start) && !it.date.isAfter(end) }
-            .sortedWith(compareBy({ it.date }, { it.createdAt }))
-
-    override fun countByDateRange(start: LocalDate, end: LocalDate) =
-        items.filter { !it.date.isBefore(start) && !it.date.isAfter(end) }
-            .groupingBy { it.date }.eachCount()
-
-    override fun insert(item: TodoItem) { items.add(item) }
-
-    override fun setCompleted(id: String, completed: Boolean) {
-        val idx = items.indexOfFirst { it.id == id }
-        if (idx >= 0) items[idx] = items[idx].copy(isCompleted = completed)
-    }
-
-    override fun delete(id: String) { items.removeAll { it.id == id } }
-
-    fun all() = items.toList()
-}
 
 /**
  * ViewModel 状态与编排验证。
