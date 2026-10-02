@@ -483,6 +483,82 @@ class AppViewModel(
         refresh()
     }
 
+    // ---------------- 多选与批量操作（需求 3） ----------------
+
+    /**
+     * 多选模式下已选中的待办 id。
+     *
+     * 存 id 而非 [TodoItem] 对象：批量操作之间会 `refresh()` 重新查库并
+     * 生成新对象，存对象会因引用不等而失效。
+     */
+    var selectedTodoIds by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    /** 是否处于多选模式。选中集合为空**不代表**退出多选 —— 两者相互独立。 */
+    var todoSelectionMode by mutableStateOf(false)
+        private set
+
+    /**
+     * 进入/退出多选模式。退出时清空选中，避免下次进入时带着旧选择。
+     *
+     * 方法名刻意不用 `setTodoSelectionMode` —— 那会与 [todoSelectionMode]
+     * 属性自动生成的 setter 产生 JVM 签名冲突（编译报 Platform declaration clash）。
+     */
+    fun changeTodoSelectionMode(enabled: Boolean) {
+        todoSelectionMode = enabled
+        if (!enabled) selectedTodoIds = emptySet()
+    }
+
+    /** 切换某条待办的选中状态。 */
+    fun toggleTodoSelection(item: TodoItem) {
+        selectedTodoIds = if (item.id in selectedTodoIds) {
+            selectedTodoIds - item.id
+        } else {
+            selectedTodoIds + item.id
+        }
+    }
+
+    /** 全选当前显示的待办；已全选时取消全选。 */
+    fun toggleSelectAll() {
+        val visible = selectedDateTodos.map { it.id }.toSet()
+        selectedTodoIds =
+            if (visible.isNotEmpty() && selectedTodoIds.containsAll(visible)) emptySet() else visible
+    }
+
+    /**
+     * 批量标记完成/未完成。
+     *
+     * 已处于目标状态的条目会被跳过：既省一次无意义的写库，
+     * 也避免反复刷新修改时间之类的字段。
+     */
+    fun completeSelected(completed: Boolean): String {
+        val targets = selectedDateTodos.filter {
+            it.id in selectedTodoIds && it.isCompleted != completed
+        }
+        if (targets.isEmpty()) {
+            return if (selectedTodoIds.isEmpty()) "请先选择待办" else "所选待办已是该状态"
+        }
+        targets.forEach { repository.setCompleted(it.id, completed) }
+        selectedTodoIds = emptySet()
+        refresh()
+        return "已将 ${targets.size} 条标记为${if (completed) "已完成" else "未完成"}"
+    }
+
+    /**
+     * 批量删除。
+     *
+     * 不弹二次确认：用户已通过"选中 + 点删除"表达了明确意图，再问一次属于
+     * 重复询问。误操作代价也有限（重新添加即可），而多选本就是为了省点击。
+     */
+    fun deleteSelected(): String {
+        if (selectedTodoIds.isEmpty()) return "请先选择待办"
+        val count = selectedTodoIds.size
+        selectedTodoIds.forEach { repository.delete(it) }
+        selectedTodoIds = emptySet()
+        refresh()
+        return "已删除 $count 条待办"
+    }
+
     // ---------------- 日期详情弹窗（双击日期触发） ----------------
 
     /**

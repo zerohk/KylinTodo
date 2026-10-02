@@ -23,6 +23,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import space.buercheng.kylintodo.AppInfo
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -391,6 +396,27 @@ private fun TodoSidePanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Box(modifier = Modifier.weight(1f))
+            // 多选开关（需求 3）。有未完成或已完成的待办时才显示 ——
+            // 列表为空时进入多选没有意义，按钮只会占位置。
+            if (viewModel.selectedDateTodos.isNotEmpty()) {
+                IconButton(
+                    onClick = {
+                        viewModel.changeTodoSelectionMode(!viewModel.todoSelectionMode)
+                    },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        if (viewModel.todoSelectionMode) Icons.Filled.Close else Icons.Filled.Check,
+                        contentDescription = if (viewModel.todoSelectionMode) "退出多选" else "多选",
+                        tint = if (viewModel.todoSelectionMode) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
             IconButton(
                 onClick = { viewModel.openAddTodo(viewModel.selectedDate) },
                 modifier = Modifier.size(28.dp),
@@ -404,12 +430,80 @@ private fun TodoSidePanel(
             }
         }
 
+        // 多选操作栏（需求 3）：仅在多选模式下占位，显示已选数量与批量动作
+        if (viewModel.todoSelectionMode) {
+            BatchActionBar(viewModel = viewModel)
+        }
+
         TodoList(
             todos = viewModel.selectedDateTodos,
             onToggle = viewModel::toggleCompleted,
             onDelete = viewModel::deleteTodo,
             onAdd = { viewModel.openAddTodo(viewModel.selectedDate) },
             modifier = Modifier.weight(1f),
+            selectionMode = viewModel.todoSelectionMode,
+            selectedIds = viewModel.selectedTodoIds,
+            onToggleSelection = viewModel::toggleTodoSelection,
         )
+    }
+}
+
+/**
+ * 批量操作栏（需求 3）。
+ *
+ * 只在多选模式下出现。把「已选几条」放在最显眼处 ——
+ * 批量删除前用户最需要确认的就是这个数字。
+ */
+@Composable
+private fun BatchActionBar(viewModel: AppViewModel) {
+    var message by remember { mutableStateOf<String?>(null) }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "已选 ${viewModel.selectedTodoIds.size} 条",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                TextButton(onClick = { viewModel.toggleSelectAll() }) {
+                    Text(
+                        text = if (
+                            viewModel.selectedTodoIds.size == viewModel.selectedDateTodos.size &&
+                            viewModel.selectedTodoIds.isNotEmpty()
+                        ) {
+                            "取消全选"
+                        } else {
+                            "全选"
+                        },
+                        fontSize = 11.sp,
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { message = viewModel.completeSelected(true) }) {
+                    Text("完成", fontSize = 11.sp)
+                }
+                TextButton(onClick = { message = viewModel.completeSelected(false) }) {
+                    Text("取消完成", fontSize = 11.sp)
+                }
+                TextButton(onClick = { message = viewModel.deleteSelected() }) {
+                    Text("删除", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            message?.let {
+                Text(
+                    text = it,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
     }
 }

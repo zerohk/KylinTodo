@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -51,6 +52,17 @@ fun TodoList(
     modifier: Modifier = Modifier,
     /** 空列表时是否显示引导文案与添加入口 */
     showEmptyState: Boolean = true,
+    /**
+     * 是否处于多选模式（需求 3）。
+     *
+     * 多选模式下点击整行即切换选中，而不是切换完成状态 ——
+     * 否则用户想勾选几条来批量删除，却先把它们标记完成了。
+     */
+    selectionMode: Boolean = false,
+    /** 多选模式下已选中的待办 id */
+    selectedIds: Set<String> = emptySet(),
+    /** 多选模式下切换某条的选中状态 */
+    onToggleSelection: (TodoItem) -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         if (todos.isEmpty()) {
@@ -66,6 +78,9 @@ fun TodoList(
                         item = item,
                         onToggle = { onToggle(item) },
                         onDelete = { onDelete(item) },
+                        selectionMode = selectionMode,
+                        selected = item.id in selectedIds,
+                        onToggleSelection = { onToggleSelection(item) },
                     )
                 }
             }
@@ -79,12 +94,31 @@ private fun TodoRow(
     item: TodoItem,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colorScheme.surface)
+            // 多选模式：整行可点，且选中行用容器色高亮。
+            // 高亮是必要的 —— 复选框本身很小，一整行只有它变化时
+            // 用户很难快速看出到底选了哪几条。
+            .background(
+                if (selectionMode && selected) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
+            )
+            .then(
+                if (selectionMode) {
+                    Modifier.clickable(onClick = onToggleSelection)
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -106,8 +140,10 @@ private fun TodoRow(
                 ),
         )
         Checkbox(
-            checked = item.isCompleted,
-            onCheckedChange = { onToggle() },
+            // 多选模式下由复选框表达"是否被选中"，而不是完成状态 ——
+            // 否则复选框与整行高亮表达两件不同的事，用户会看糊涂。
+            checked = if (selectionMode) selected else item.isCompleted,
+            onCheckedChange = { if (selectionMode) onToggleSelection() else onToggle() },
         )
         Column(
             modifier = Modifier
@@ -132,16 +168,20 @@ private fun TodoRow(
                 TagRow(item.tags)
             }
         }
-        IconButton(
-            onClick = onDelete,
-            modifier = Modifier.size(32.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Delete,
-                contentDescription = "删除待办",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
+        // 多选模式下隐藏单条删除按钮：此时删除是批量操作，
+        // 留着一排小垃圾桶既占位置又容易误触（用户本想勾选，却删掉了一条）。
+        if (!selectionMode) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "删除待办",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
