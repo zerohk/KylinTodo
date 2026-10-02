@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.window.WindowScope
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import space.buercheng.kylintodo.data.AppPaths
@@ -56,6 +58,32 @@ import java.time.LocalDate
  *  - `--view=day|week|month`：指定启动时的视图模式
  *  - `--date=YYYY-MM-DD`：指定启动时的锚定日期
  */
+/**
+ * 把不透明度应用到所属窗口（需求 4）。
+ *
+ * ## 为什么用窗口级 alpha 而不是组件背景色
+ * 调组件背景色的透明只能让"内容区"变淡，标题栏、边框、阴影仍是不透明的，
+ * 整体观感很割裂。窗口级 alpha 对整窗生效，效果自然。
+ *
+ * ## 为什么从 WindowScope 取窗口
+ * Compose 的 `LocalWindow` 是 **internal** 的，外部模块无法访问；
+ * 而 `WindowScope.window` 是公开 API，指向同一个 AWT 窗口对象。
+ */
+@Composable
+private fun WindowScope.ApplyWindowOpacity(opacity: Float) {
+    val clamped = opacity.coerceIn(SettingsStore.OPACITY_MIN, 1f)
+
+    // 用 SideEffect 而非直接在组合里赋值：赋值是副作用，
+    // 放在组合过程中会在重组期间产生意外的窗口重绘。
+    //
+    // 吞掉异常：部分 Linux 会话（尤其未启用合成器时）不支持窗口透明，
+    // AWT 会抛 UnsupportedOperationException。透明度是外观设置，
+    // 不应因此让界面崩溃或阻止启动。
+    SideEffect {
+        runCatching { window.opacity = clamped }
+    }
+}
+
 fun main(args: Array<String>) {
     // 必须在任何 AWT / Skia 字体对象创建之前设置，用于改善 Linux 下的
     // 中文抗锯齿表现（需求 4.1 要求解决字体发虚问题）。
@@ -187,6 +215,9 @@ fun main(args: Array<String>) {
                 handleDebugShortcut(event, debugState)
             },
         ) {
+            // 主窗口透明度（需求 4）
+            ApplyWindowOpacity(settings.mainOpacity)
+
             // 命令行要求时启动即打开设置弹窗。
             // 必须放在窗口的 composable 内容里 —— 外层的 application {} 不是
             // composable 上下文，放在那里 LaunchedEffect 不会执行。
@@ -404,11 +435,14 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsContr
         icon = AppIcon.painter,
         // 无系统边框：小窗自带拖动把手与关闭按钮
         undecorated = true,
-        // 置顶常驻，避免被其他窗口完全遮住而失去"小组件"的意义
-        alwaysOnTop = true,
+        // 置顶由设置驱动（需求 5），可在设置里或点小窗上的星形按钮切换
+        alwaysOnTop = settings.widgetPinned,
         // 小窗尺寸固定，避免误拖边框改变布局
         resizable = false,
     ) {
+        // 小窗透明度（需求 4）。用窗口级 alpha 而非组件背景色，
+        // 这样无边框窗口的圆角与阴影也一并变淡，观感一致。
+        ApplyWindowOpacity(settings.widgetOpacity)
         KylinTodoTheme(
             mode = settings.themeMode,
             fontScale = settings.scaleValue,
@@ -421,6 +455,9 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsContr
                 onAdd = { viewModel.openAddTodo(viewModel.selectedDate) },
                 onOpenMain = { viewModel.changeWidgetVisibility(false) },
                 onClose = { viewModel.changeWidgetVisibility(false) },
+                // 置顶开关（需求 5）：改设置即改窗口属性，无需重启
+                pinned = settings.widgetPinned,
+                onTogglePin = { settings.update(pinned = !settings.widgetPinned) },
                 onDrag = { dx, dy ->
                     widgetState.position = nextWindowPosition(
                         current = widgetState.position,

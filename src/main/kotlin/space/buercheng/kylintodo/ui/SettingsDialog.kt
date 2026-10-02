@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,6 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import space.buercheng.kylintodo.AppInfo
+import space.buercheng.kylintodo.data.AutoStartManager
+import androidx.compose.material3.Slider
+import kotlin.math.roundToInt
 import space.buercheng.kylintodo.data.FontScale
 import space.buercheng.kylintodo.data.SettingsStore
 import space.buercheng.kylintodo.data.ThemeMode
@@ -71,6 +75,18 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
 
     var widgetVisibleOnStart by mutableStateOf(initial.widgetVisibleOnStart)
 
+    /** 小窗是否始终置顶（需求 5）。小窗按钮与设置界面都能改。 */
+    var widgetPinned by mutableStateOf(initial.widgetPinned)
+
+    /** 开机自启动（需求 6）。改动会同时写入系统自启动项。 */
+    var autoStart by mutableStateOf(initial.autoStart)
+
+    /** 主窗口不透明度（需求 4） */
+    var mainOpacity by mutableStateOf(initial.mainOpacity)
+
+    /** 小窗不透明度（需求 4） */
+    var widgetOpacity by mutableStateOf(initial.widgetOpacity)
+
     /**
      * 修改后立即持久化，避免用户忘记保存而丢失设置。
      *
@@ -82,22 +98,110 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
         theme: ThemeMode = themeMode,
         scale: FontScale = fontScale,
         widgetOnStart: Boolean = widgetVisibleOnStart,
+        pinned: Boolean = widgetPinned,
+        auto: Boolean = autoStart,
+        mainAlpha: Float = mainOpacity,
+        widgetAlpha: Float = widgetOpacity,
     ) {
         appName = AppInfo.normalizeName(name)
         themeMode = theme
         fontScale = scale
         widgetVisibleOnStart = widgetOnStart
+        widgetPinned = pinned
+        autoStart = auto
+        // 夹取到合法区间：滑块理论上不会越界，但配置可能被手工改坏
+        mainOpacity = mainAlpha.coerceIn(SettingsStore.OPACITY_MIN, 1f)
+        widgetOpacity = widgetAlpha.coerceIn(SettingsStore.OPACITY_MIN, 1f)
         SettingsStore.save(
             space.buercheng.kylintodo.data.AppSettings(
                 appName = appName,
                 themeMode = theme,
                 fontScale = scale,
                 widgetVisibleOnStart = widgetOnStart,
+                widgetPinned = widgetPinned,
+                autoStart = autoStart,
+                mainOpacity = mainOpacity,
+                widgetOpacity = widgetOpacity,
             )
         )
     }
 
     val scaleValue: Float get() = fontScale.scale
+}
+
+/**
+ * 「标题 + 说明 + 右侧开关」的通用设置行。
+ *
+ * 抽出来是因为设置项越来越多（置顶、自启动…），逐处复制 Row/Switch
+ * 容易出现间距与对齐不一致。
+ */
+@Composable
+private fun SettingSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Text(
+                text = subtitle,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+    }
+}
+
+/**
+ * 透明度滑块（需求 4）。
+ *
+ * 显示百分比而非 0~1 的小数：用户关心的是"有多透明"，
+ * 百分比一眼可读，也更便于复述给别人。
+ */
+@Composable
+private fun OpacitySlider(
+    title: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "${(value * 100).roundToInt()}%",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = SettingsStore.OPACITY_MIN..1f,
+            // 分成 20 档（每档 2.5%）：连续拖动没有意义，
+            // 分档更容易停在整数百分比上。
+            steps = 19,
+        )
+    }
 }
 
 /**
@@ -124,6 +228,8 @@ fun SettingsDialog(
 ) {
     var exportMessage by remember { mutableStateOf<String?>(null) }
     var holidayMessage by remember { mutableStateOf<String?>(null) }
+    /** 开机自启动写入失败时的提示（需求 6） */
+    var autoStartMessage by remember { mutableStateOf<String?>(null) }
     // 导入/清空后需要重新读取概要，故用可变状态而不是直接调用
     var holidaySummaryText by remember { mutableStateOf(holidaySummary()) }
     var showAbout by remember { mutableStateOf(false) }
@@ -227,6 +333,64 @@ fun SettingsDialog(
                             onCheckedChange = { controller.update(widgetOnStart = it) },
                         )
                     }
+
+                    // 小窗置顶（需求 5）：也可直接点小窗上的星形按钮切换
+                    SettingSwitchRow(
+                        title = "桌面小窗始终置顶",
+                        subtitle = "关闭后小窗会被其他窗口遮挡（也可点小窗上的星形按钮切换）",
+                        checked = controller.widgetPinned,
+                        onCheckedChange = { controller.update(pinned = it) },
+                    )
+
+                    // 开机自启动（需求 6）
+                    SettingSwitchRow(
+                        title = "开机自动启动",
+                        subtitle = if (AutoStartManager.isSupported()) {
+                            "登录系统后自动启动本应用（写入系统自启动项）"
+                        } else {
+                            "当前环境不支持自动配置，请手动添加到系统自启动"
+                        },
+                        checked = controller.autoStart,
+                        enabled = AutoStartManager.isSupported(),
+                        onCheckedChange = { want ->
+                            // 先尝试写系统自启动项，成功后才更新设置。
+                            // 反过来的话，写入失败会让界面显示"已开启"而实际不生效。
+                            val message = AutoStartManager.apply(want)
+                            if (message == null) {
+                                controller.update(auto = want)
+                            } else {
+                                autoStartMessage = message
+                            }
+                        },
+                    )
+                    autoStartMessage?.let { msg ->
+                        Text(
+                            text = msg,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+
+                    // ---------------- 窗口透明度（需求 4） ----------------
+                    SectionDivider()
+                    GroupTitle(Icons.Filled.Settings, "窗口透明度")
+                    OpacitySlider(
+                        title = "主窗口",
+                        value = controller.mainOpacity,
+                        onValueChange = { controller.update(mainAlpha = it) },
+                    )
+                    OpacitySlider(
+                        title = "桌面小窗",
+                        value = controller.widgetOpacity,
+                        onValueChange = { controller.update(widgetAlpha = it) },
+                    )
+                    Text(
+                        text = "最低 ${(SettingsStore.OPACITY_MIN * 100).toInt()}%；" +
+                            "过透明会导致内容难以辨认，因此不提供更低值",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
 
                     // ---------------- 数据 ----------------
                     SectionDivider()

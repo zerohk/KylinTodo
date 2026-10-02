@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Checkbox
@@ -63,6 +64,10 @@ fun DesktopWidgetScreen(
     onOpenMain: () -> Unit,
     onClose: () -> Unit,
     onDrag: (Float, Float) -> Unit,
+    /** 当前是否置顶（需求 5）。置顶时星形按钮以主色高亮。 */
+    pinned: Boolean,
+    /** 切换置顶状态（需求 5） */
+    onTogglePin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -108,6 +113,16 @@ fun DesktopWidgetScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
+                // 置顶开关（需求 5）：点击在「始终置顶」与「不置顶」间切换。
+                // 置顶时图标用主色高亮，一眼可辨当前状态。
+                IconButton(onClick = onTogglePin, modifier = Modifier.size(26.dp)) {
+                    Icon(
+                        Icons.Filled.Star,
+                        contentDescription = if (pinned) "取消置顶" else "置顶显示",
+                        tint = if (pinned) scheme.primary else scheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp),
+                    )
                 }
                 IconButton(onClick = onOpenMain, modifier = Modifier.size(26.dp)) {
                     Icon(

@@ -44,6 +44,10 @@ object SettingsStore {
     private const val KEY_FONT_SCALE = "fontScale"
     private const val KEY_WIDGET_VISIBLE = "widgetVisibleOnStart"
     private const val KEY_APP_NAME = "appDisplayName"
+    private const val KEY_WIDGET_PINNED = "widgetPinned"
+    private const val KEY_AUTO_START = "autoStart"
+    private const val KEY_MAIN_OPACITY = "mainOpacity"
+    private const val KEY_WIDGET_OPACITY = "widgetOpacity"
 
     private val prefs: Preferences? by lazy {
         runCatching { Preferences.userRoot().node(NODE) }.getOrNull()
@@ -63,6 +67,21 @@ object SettingsStore {
         widgetVisibleOnStart = runCatching {
             prefs?.getBoolean(KEY_WIDGET_VISIBLE, false) ?: false
         }.getOrDefault(false),
+        widgetPinned = runCatching {
+            prefs?.getBoolean(KEY_WIDGET_PINNED, true) ?: true
+        }.getOrDefault(true),
+        autoStart = runCatching {
+            prefs?.getBoolean(KEY_AUTO_START, false) ?: false
+        }.getOrDefault(false),
+        // 不透明度用字符串存：Preferences 只有 double，而 Float 转 double
+        // 往返会有精度噪声（0.95f -> 0.949999988...），显示时会出现
+        // "94.999%"这类难看的数字。
+        mainOpacity = runCatching {
+            prefs?.get(KEY_MAIN_OPACITY, null)?.toFloatOrNull() ?: 1f
+        }.getOrDefault(1f).coerceIn(OPACITY_MIN, 1f),
+        widgetOpacity = runCatching {
+            prefs?.get(KEY_WIDGET_OPACITY, null)?.toFloatOrNull() ?: DEFAULT_WIDGET_OPACITY
+        }.getOrDefault(DEFAULT_WIDGET_OPACITY).coerceIn(OPACITY_MIN, 1f),
     )
 
     /** 保存偏好。失败时静默忽略 —— 界面仍按当前会话的设置工作。 */
@@ -72,9 +91,24 @@ object SettingsStore {
             prefs?.put(KEY_THEME, settings.themeMode.name)
             prefs?.put(KEY_FONT_SCALE, settings.fontScale.name)
             prefs?.putBoolean(KEY_WIDGET_VISIBLE, settings.widgetVisibleOnStart)
+            prefs?.putBoolean(KEY_WIDGET_PINNED, settings.widgetPinned)
+            prefs?.putBoolean(KEY_AUTO_START, settings.autoStart)
+            prefs?.put(KEY_MAIN_OPACITY, settings.mainOpacity.toString())
+            prefs?.put(KEY_WIDGET_OPACITY, settings.widgetOpacity.toString())
             prefs?.flush()
         }
     }
+
+    /**
+     * 不透明度的下限。
+     *
+     * 不放到 0：窗口太透明会让用户"看不见也点不到"，属于把自己关在门外。
+     * 0.5 已经足够淡，同时保证内容始终可辨、可操作。
+     */
+    const val OPACITY_MIN = 0.5f
+
+    /** 小窗默认略透明：它常驻桌面，全不透明会显得很突兀。 */
+    const val DEFAULT_WIDGET_OPACITY = 0.95f
 
     /** 供诊断：偏好存储是否真的可用。 */
     fun isPersistent(): Boolean = prefs != null
@@ -88,4 +122,12 @@ data class AppSettings(
     val fontScale: FontScale = FontScale.NORMAL,
     /** 启动时是否自动打开桌面小窗 */
     val widgetVisibleOnStart: Boolean = false,
+    /** 桌面小窗是否始终置顶（需求 5） */
+    val widgetPinned: Boolean = true,
+    /** 开机自启动（需求 6） */
+    val autoStart: Boolean = false,
+    /** 主窗口不透明度（需求 4），1.0 = 完全不透明 */
+    val mainOpacity: Float = 1f,
+    /** 小窗不透明度（需求 4） */
+    val widgetOpacity: Float = SettingsStore.DEFAULT_WIDGET_OPACITY,
 )
