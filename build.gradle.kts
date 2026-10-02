@@ -67,8 +67,28 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "KylinTodo"
+            // 显示名称改为「大智桌面日历」。
+            // 注意：Linux 的 .deb 包名（kylintodo）保持英文小写 —— dpkg 对
+            // 非 ASCII 包名支持不佳，且改包名会让已安装用户无法平滑升级。
+            // packageName 只影响安装目录名与可执行文件名，这里一并改为英文，
+            // 中文名称通过 desktop 文件的 Name 字段呈现。
+            packageName = "dazhi-calendar"
             packageVersion = "1.0.0"
+            description = "大智桌面日历 — 面向银河麒麟的日历与待办应用"
+            vendor = "zerohk"
+
+            // 桌面项与菜单里的显示名称（支持中文）
+            linux {
+                packageName = "dazhi-calendar"
+                debMaintainer = "zerohk"
+                menuGroup = "Utility"
+                appCategory = "Utility"
+            }
+            windows {
+                menuGroup = "大智桌面日历"
+                // 升级时沿用同一 UUID，避免被系统当作两个不同的应用
+                upgradeUuid = "8F2A7C41-5B3E-4D6A-9C18-2E7B4A1D9F30"
+            }
 
             // 显式声明运行时镜像需要的 JDK 模块。
             //

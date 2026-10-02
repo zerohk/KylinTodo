@@ -1,9 +1,28 @@
-# KylinTodo · 麒麟日历
+# 大智桌面日历 · Dazhi Desktop Calendar
 
 面向**银河麒麟桌面操作系统 V10**的日历 + 待办桌面应用，基于
 **Kotlin + Compose Multiplatform (Desktop)**，同时在 Windows 上开发调试。
 
+> 早期版本名为「麒麟日历 · KylinTodo」。显示名称已改为「大智桌面日历」，
+> 但**代码包名（`space.buercheng.kylintodo`）与 Linux 包名保持 `dazhi-calendar`
+> 不变** —— 改包名会被系统视为另一个应用，已安装用户将无法平滑升级。
+
 > 本仓库每次更改都会同步到 Git，方便随时回退。
+
+## 应用图标
+
+图标由 `scripts/generate_icon.py` **程序化生成**（无外部素材、无版权风险），
+输出 512/256/128/64/48/32/16 七种尺寸的 PNG 与多尺寸 ICO 到
+`src/main/resources/icon/`。
+
+设计要素：麒麟蓝渐变圆角底、白色日期卡、顶部装订孔、右下角绿色对勾
+（表达待办完成）。刻意不用中文字符做主体 —— 小尺寸下汉字会糊成一团。
+
+重新生成（需要 Pillow）：
+
+```bash
+python scripts/generate_icon.py
+```
 
 ## 功能
 

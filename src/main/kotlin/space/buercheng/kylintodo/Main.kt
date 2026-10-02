@@ -23,6 +23,7 @@ import space.buercheng.kylintodo.domain.CalendarViewMode
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.ui.AddTodoDialog
 import space.buercheng.kylintodo.ui.AppViewModel
+import space.buercheng.kylintodo.ui.AppIcon
 import space.buercheng.kylintodo.ui.CalendarScreen
 import space.buercheng.kylintodo.ui.ClickProbeSupport
 import space.buercheng.kylintodo.ui.DayInfoDialog
@@ -35,6 +36,15 @@ import space.buercheng.kylintodo.ui.configureFontRendering
 import space.buercheng.kylintodo.ui.nextWindowPosition
 import space.buercheng.kylintodo.ui.selectedChineseFontName
 import java.time.LocalDate
+
+/**
+ * 应用的对外显示名称。
+ *
+ * 集中在一处，避免窗口标题、小窗标题、打包配置各写一遍导致不一致。
+ * 注意：**包名与 Linux 包名仍然保留 `kylintodo`**，只改显示名称 ——
+ * 改包名会被系统视为另一个应用，已安装用户无法平滑升级。
+ */
+const val APP_DISPLAY_NAME = "大智桌面日历"
 
 /**
  * 应用入口。
@@ -125,8 +135,9 @@ fun main(args: Array<String>) {
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = "麒麟日历 · KylinTodo",
+            title = APP_DISPLAY_NAME,
             state = windowState,
+            icon = AppIcon.painter,
             // 允许用鼠标拖拽边框缩放。Compose Desktop 默认即为 true，
             // 这里显式写出以免后续误改。
             //
@@ -330,7 +341,8 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel) {
     Window(
         onCloseRequest = { viewModel.changeWidgetVisibility(false) },
         state = widgetState,
-        title = "麒麟日历小窗",
+        title = "$APP_DISPLAY_NAME 小窗",
+        icon = AppIcon.painter,
         // 无系统边框：小窗自带拖动把手与关闭按钮
         undecorated = true,
         // 置顶常驻，避免被其他窗口完全遮住而失去"小组件"的意义
