@@ -44,11 +44,23 @@ object TodoExporter {
         val jsonFile = targetDir.resolve("todos-$stamp.json")
         val csvFile = targetDir.resolve("todos-$stamp.csv")
 
-        Files.writeString(jsonFile, toJson(items))
-        Files.writeString(csvFile, toCsv(items))
+        // JSON 用无 BOM 的 UTF-8：JSON 规范要求 UTF-8，且编辑器/程序都能正确识别。
+        Files.writeString(jsonFile, toJson(items), Charsets.UTF_8)
+
+        // CSV **必须带 UTF-8 BOM**：Excel 与 WPS 在打开无 BOM 的 UTF-8 CSV 时，
+        // 会按系统本地代码页（简体中文环境是 GBK）解析，中文全部变成乱码。
+        // BOM 是让它们识别为 UTF-8 的唯一可靠方式；内容里的中文表头与待办
+        // 文本都依赖它。
+        Files.write(csvFile, utf8BomBytes(toCsv(items)))
 
         return Result(jsonFile, csvFile, items.size)
     }
+
+    /** UTF-8 BOM（U+FEFF 的 UTF-8 编码），供表格软件识别编码。 */
+    private val UTF8_BOM = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
+
+    private fun utf8BomBytes(content: String): ByteArray =
+        UTF8_BOM + content.toByteArray(Charsets.UTF_8)
 
     // ---------------------------------------------------------------- JSON
 

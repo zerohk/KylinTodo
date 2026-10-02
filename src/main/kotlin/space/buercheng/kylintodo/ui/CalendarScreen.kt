@@ -260,16 +260,15 @@ private fun CalendarToolbar(
         }
 
         // 设置入口（需求反馈第 5 条）
-        IconButton(
+        // 齿轮只有图形，悬浮提示是必要的自解释手段
+        TooltipIconButton(
+            icon = Icons.Filled.Settings,
+            tooltip = "设置（皮肤 / 字号 / 透明度 / 自启动 / 节假日 / 日志）",
             onClick = viewModel::openSettings,
             modifier = Modifier.padding(end = 4.dp),
-        ) {
-            Icon(
-                Icons.Filled.Settings,
-                contentDescription = "设置",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            iconSize = 20.dp,
+            buttonSize = 34.dp,
+        )
 
         ViewModeSwitcher(
             current = viewModel.viewMode,
@@ -399,35 +398,33 @@ private fun TodoSidePanel(
             // 多选开关（需求 3）。有未完成或已完成的待办时才显示 ——
             // 列表为空时进入多选没有意义，按钮只会占位置。
             if (viewModel.selectedDateTodos.isNotEmpty()) {
-                IconButton(
+                TooltipIconButton(
+                    icon = if (viewModel.todoSelectionMode) {
+                        Icons.Filled.Close
+                    } else {
+                        Icons.Filled.Check
+                    },
+                    tooltip = if (viewModel.todoSelectionMode) {
+                        "退出多选"
+                    } else {
+                        "多选：可批量完成或删除"
+                    },
                     onClick = {
                         viewModel.changeTodoSelectionMode(!viewModel.todoSelectionMode)
                     },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        if (viewModel.todoSelectionMode) Icons.Filled.Close else Icons.Filled.Check,
-                        contentDescription = if (viewModel.todoSelectionMode) "退出多选" else "多选",
-                        tint = if (viewModel.todoSelectionMode) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-            IconButton(
-                onClick = { viewModel.openAddTodo(viewModel.selectedDate) },
-                modifier = Modifier.size(28.dp),
-            ) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = "为选中日期添加待办",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
+                    highlighted = viewModel.todoSelectionMode,
+                    buttonSize = 28.dp,
+                    iconSize = 18.dp,
                 )
             }
+            TooltipIconButton(
+                icon = Icons.Filled.Add,
+                tooltip = "为选中日期添加待办",
+                onClick = { viewModel.openAddTodo(viewModel.selectedDate) },
+                tint = MaterialTheme.colorScheme.primary,
+                buttonSize = 28.dp,
+                iconSize = 18.dp,
+            )
         }
 
         // 多选操作栏（需求 3）：仅在多选模式下占位，显示已选数量与批量动作

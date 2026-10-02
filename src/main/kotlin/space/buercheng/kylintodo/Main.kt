@@ -32,9 +32,11 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import space.buercheng.kylintodo.AppInfo
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.WindowScope
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
+import space.buercheng.kylintodo.data.AppLog
 import space.buercheng.kylintodo.data.AppPaths
 import space.buercheng.kylintodo.data.DesktopDataExporter
 import space.buercheng.kylintodo.data.DesktopHolidayTransfer
@@ -129,35 +131,37 @@ private fun SplashWindowContent(message: String, isError: Boolean) {
 }
 
 /**
- * 把不透明度应用到所属窗口（需求 4）。
+ * 给窗口内容套一层不透明度（需求 4）。
  *
- * ## 为什么用窗口级 alpha 而不是组件背景色
- * 调组件背景色的透明只能让"内容区"变淡，标题栏、边框、阴影仍是不透明的，
- * 整体观感很割裂。窗口级 alpha 对整窗生效，效果自然。
+ * ## 为什么不用 `window.opacity`（AWT 窗口级 alpha）
+ * 那是最初的实现，但用户实测**主窗口不生效**。AWT 的窗口不透明度依赖
+ * 桌面合成器，在"窗口装饰由系统绘制"的普通窗口上行为不一致：
+ * 有的环境抛 UnsupportedOperationException，有的静默忽略。
  *
- * ## 为什么从 WindowScope 取窗口
- * Compose 的 `LocalWindow` 是 **internal** 的，外部模块无法访问；
- * 而 `WindowScope.window` 是公开 API，指向同一个 AWT 窗口对象。
+ * 改用 Compose 的 [androidx.compose.ui.graphics.graphicsLayer] 对内容做
+ * alpha 混合：
+ *  - 不依赖平台合成器，Windows 与麒麟行为一致
+ *  - 与项目其余 UI 走同一条渲染路径，观感统一
+ *
+ * 代价：系统绘制的标题栏不会被淡化。这是有意的取舍 ——
+ * 「内容确实会变淡」比「整窗包括标题栏一起淡、但常常完全不生效」要好。
  */
 @Composable
-private fun WindowScope.ApplyWindowOpacity(opacity: Float) {
-    val clamped = opacity.coerceIn(SettingsStore.OPACITY_MIN, 1f)
-
-    // 用 SideEffect 而非直接在组合里赋值：赋值是副作用，
-    // 放在组合过程中会在重组期间产生意外的窗口重绘。
-    //
-    // 吞掉异常：部分 Linux 会话（尤其未启用合成器时）不支持窗口透明，
-    // AWT 会抛 UnsupportedOperationException。透明度是外观设置，
-    // 不应因此让界面崩溃或阻止启动。
-    SideEffect {
-        runCatching { window.opacity = clamped }
-    }
+private fun Modifier.windowOpacity(alpha: Float): Modifier {
+    val clamped = alpha.coerceIn(SettingsStore.OPACITY_MIN, 1f)
+    return this.graphicsLayer { this.alpha = clamped }
 }
 
 fun main(args: Array<String>) {
     // 必须在任何 AWT / Skia 字体对象创建之前设置，用于改善 Linux 下的
     // 中文抗锯齿表现（需求 4.1 要求解决字体发虚问题）。
     configureFontRendering()
+
+    // 日志与崩溃记录必须在一切之前装好：
+    // 从桌面图标启动时没有控制台，stdout/stderr 的报错用户根本看不到，
+    // 出问题时也就无从反馈。尽早初始化才能记下启动阶段的失败。
+    AppLog.init()
+    AppLog.installCrashHandler()
 
     val options = parseArgs(args)
 
@@ -293,6 +297,33 @@ fun main(args: Array<String>) {
         // 用 remember 持有，保证整个应用生命周期内是同一份状态。
         val settings = remember { SettingsController(SettingsStore.load()) }
 
+        // 日志信息注入设置界面（需求：日志便于排查问题）
+        remember(settings) {
+            settings.logSummary = AppLog.describe()
+            settings.onOpenLogFolder = {
+                runCatching {
+                    val dir = AppLog.currentFile()?.parent
+                    if (dir == null) {
+                        "日志尚未初始化"
+                    } else {
+                        // Desktop.open 用系统默认程序打开文件夹，
+                        // 比"把路径复制给用户让他自己找"友好得多。
+                        java.awt.Desktop.getDesktop().open(dir.toFile())
+                        "已打开日志文件夹：$dir"
+                    }
+                }.getOrElse { e ->
+                    "无法打开文件夹：${e.message ?: e::class.simpleName}\n" +
+                        "可手动前往：${AppLog.currentFile()?.parent}"
+                }
+            }
+            settings.onClearLog = {
+                AppLog.clear()
+                settings.logSummary = AppLog.describe()
+                "日志已清空"
+            }
+            true
+        }
+
         // 调试用操作日志。仅在打开调试栏时注入 ViewModel，避免生产开销。
         val actionLog = remember { ActionLog() }
         LaunchedEffect(debugState.visible) {
@@ -319,9 +350,6 @@ fun main(args: Array<String>) {
                 handleDebugShortcut(event, debugState)
             },
         ) {
-            // 主窗口透明度（需求 4）
-            ApplyWindowOpacity(settings.mainOpacity)
-
             // 命令行要求时启动即打开设置弹窗。
             // 必须放在窗口的 composable 内容里 —— 外层的 application {} 不是
             // composable 上下文，放在那里 LaunchedEffect 不会执行。
@@ -335,7 +363,10 @@ fun main(args: Array<String>) {
             ) {
                 // 用 Column 包住：主题的 content 是单个可组合项，
                 // 直接并列两个兄弟节点会互相重叠而非上下排列。
-                Column(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    // 主窗口透明度（需求 4）：施加在最外层，让整个界面一起变淡
+                    modifier = Modifier.fillMaxSize().windowOpacity(settings.mainOpacity),
+                ) {
                     // 调试状态栏：把 anchor / selected / 网格范围等关键状态平铺显示，
                     // 并记录操作序列，供用户复现问题时截图。
                     if (debugState.visible) {
@@ -544,9 +575,6 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsContr
         // 小窗尺寸固定，避免误拖边框改变布局
         resizable = false,
     ) {
-        // 小窗透明度（需求 4）。用窗口级 alpha 而非组件背景色，
-        // 这样无边框窗口的圆角与阴影也一并变淡，观感一致。
-        ApplyWindowOpacity(settings.widgetOpacity)
         KylinTodoTheme(
             mode = settings.themeMode,
             fontScale = settings.scaleValue,
@@ -562,6 +590,8 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsContr
                 // 置顶开关（需求 5）：改设置即改窗口属性，无需重启
                 pinned = settings.widgetPinned,
                 onTogglePin = { settings.update(pinned = !settings.widgetPinned) },
+                // 小窗透明度（需求 4）
+                modifier = Modifier.windowOpacity(settings.widgetOpacity),
                 onDrag = { dx, dy ->
                     widgetState.position = nextWindowPosition(
                         current = widgetState.position,

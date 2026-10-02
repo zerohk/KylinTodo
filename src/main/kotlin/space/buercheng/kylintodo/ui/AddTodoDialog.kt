@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -113,20 +116,38 @@ fun AddTodoDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            // 宽度自适应，**不能写死 520dp**：
-            // 桌面小窗只有 300dp 宽，写死会让弹窗超出窗口边界，把
-            // 「取消 / 关闭」裁到窗口外而点不到 —— 用户表现为
-            // "小窗里添加待办时没法退出，只能提交"。
-            // 因此改成「最多 520dp，且不超过可用宽度的 94%」。
+            // 宽高都必须自适应，**不能写死**。
+            //
+            // 宽度：小窗只有 300dp 宽，写死 520dp 会让弹窗超出窗口边界。
+            // 高度：本弹窗内容（标题 + 输入框 + 优先级 + 标签 + 按钮行）
+            //   约需 480dp，而小窗高度只有 400dp —— 底部按钮行会被推到
+            //   窗口之外，用户看到的就是"没有取消按钮、只能提交"。
+            //
+            // 因此：宽度取「最多 520dp 且不超过可用宽度 94%」，
+            // 高度取「不超过可用高度 92%」，并让内容可滚动 ——
+            // 这样无论窗口多小，按钮都能通过滚动看到并点到。
             modifier = Modifier
                 .widthIn(max = 520.dp)
-                .fillMaxWidth(0.94f),
+                .fillMaxWidth(0.94f)
+                .heightIn(max = 640.dp),
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 4.dp,
             shadowElevation = 16.dp,
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            // 外层 Column 提供 ColumnScope —— weight 只在 Column 作用域内可用，
+            // 而 Surface 的内容槽不是 Column（直接写会报 Unresolved reference 'weight'）。
+            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 20.dp)
+                    // weight(1f, fill = false)：内容不多时按内容高度收缩，
+                    // 内容过多时占用剩余空间并滚动。用 fill = false 是为了
+                    // 避免短内容被拉高成 640dp 的空框。
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 DialogHeader(date = date, dayInfo = dayInfo)
 
                 SectionDivider()
@@ -221,24 +242,28 @@ fun AddTodoDialog(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { addTagFromDraft() }),
                 )
+            }
 
-                // ---------------- 操作按钮 ----------------
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 18.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
+            // ---------------- 操作按钮（固定在底部，不随内容滚动） ----------------
+            //
+            // 必须放在滚动区之外：小窗高度有限时，若按钮跟着内容一起滚动，
+            // 用户看到的仍然是"没有取消按钮"。固定底部才能保证它永远可见。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 16.dp, top = 10.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onDismiss) { Text("取消") }
+                Button(
+                    onClick = { submit() },
+                    enabled = isValid,
+                    modifier = Modifier.padding(start = 8.dp),
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
-                    Button(
-                        onClick = { submit() },
-                        enabled = isValid,
-                        modifier = Modifier.padding(start = 8.dp),
-                    ) {
-                        Text("添加")
-                    }
+                    Text("添加")
                 }
+            }
             }
         }
     }

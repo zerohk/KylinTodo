@@ -116,30 +116,30 @@ fun DesktopWidgetScreen(
                 }
                 // 置顶开关（需求 5）：点击在「始终置顶」与「不置顶」间切换。
                 // 置顶时图标用主色高亮，一眼可辨当前状态。
-                IconButton(onClick = onTogglePin, modifier = Modifier.size(26.dp)) {
-                    Icon(
-                        Icons.Filled.Star,
-                        contentDescription = if (pinned) "取消置顶" else "置顶显示",
-                        tint = if (pinned) scheme.primary else scheme.onSurfaceVariant,
-                        modifier = Modifier.size(15.dp),
-                    )
-                }
-                IconButton(onClick = onOpenMain, modifier = Modifier.size(26.dp)) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = "打开主窗口",
-                        tint = scheme.primary,
-                        modifier = Modifier.size(15.dp),
-                    )
-                }
-                IconButton(onClick = onClose, modifier = Modifier.size(26.dp)) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "关闭小窗",
-                        tint = scheme.onSurfaceVariant,
-                        modifier = Modifier.size(15.dp),
-                    )
-                }
+                // 三个按钮都带悬浮提示：图标本身不自解释（星形尤其容易被误认为收藏）
+                TooltipIconButton(
+                    icon = Icons.Filled.Star,
+                    tooltip = if (pinned) "取消置顶（当前已置顶）" else "置顶显示",
+                    onClick = onTogglePin,
+                    highlighted = pinned,
+                    buttonSize = 26.dp,
+                    iconSize = 15.dp,
+                )
+                TooltipIconButton(
+                    icon = Icons.AutoMirrored.Filled.OpenInNew,
+                    tooltip = "打开主窗口",
+                    onClick = onOpenMain,
+                    tint = scheme.primary,
+                    buttonSize = 26.dp,
+                    iconSize = 15.dp,
+                )
+                TooltipIconButton(
+                    icon = Icons.Filled.Close,
+                    tooltip = "关闭小窗",
+                    onClick = onClose,
+                    buttonSize = 26.dp,
+                    iconSize = 15.dp,
+                )
             }
 
             // ---------- 进度 ----------

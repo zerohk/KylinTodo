@@ -73,6 +73,18 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
 
     var fontScale by mutableStateOf(initial.fontScale)
 
+    /**
+     * 日志文件的展示文本（需求：日志便于排查问题）。
+     *
+     * 由外部传入而非直接调用 [AppLog]：这样设置界面不必依赖日志实现，
+     * 单元测试也能传入固定字符串。
+     */
+    var logSummary: String = ""
+
+    /** 打开日志所在文件夹 / 清空日志。均为副作用，由外部注入。 */
+    var onOpenLogFolder: () -> String = { "" }
+    var onClearLog: () -> String = { "" }
+
     var widgetVisibleOnStart by mutableStateOf(initial.widgetVisibleOnStart)
 
     /** 小窗是否始终置顶（需求 5）。小窗按钮与设置界面都能改。 */
@@ -228,6 +240,8 @@ fun SettingsDialog(
 ) {
     var exportMessage by remember { mutableStateOf<String?>(null) }
     var holidayMessage by remember { mutableStateOf<String?>(null) }
+    /** 日志操作的反馈文本 */
+    var logMessage by remember { mutableStateOf<String?>(null) }
     /** 开机自启动写入失败时的提示（需求 6） */
     var autoStartMessage by remember { mutableStateOf<String?>(null) }
     // 导入/清空后需要重新读取概要，故用可变状态而不是直接调用
@@ -514,6 +528,48 @@ fun SettingsDialog(
                         }
                         TextButton(onClick = { showAbout = true }) { Text("查看详情") }
                     }
+                }
+
+                // ---------------- 运行日志 ----------------
+                SectionDivider()
+                GroupTitle(Icons.Filled.Info, "运行日志")
+                Text(
+                    text = controller.logSummary,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "出问题时把这个日志文件发给我们即可定位。" +
+                        "日志超过 2 MB 会自动丢弃最早的内容，不会无限增长。",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = { logMessage = controller.onOpenLogFolder() },
+                    ) {
+                        Text("打开日志位置", fontSize = 12.sp)
+                    }
+                    TextButton(
+                        onClick = {
+                            logMessage = controller.onClearLog()
+                            controller.logSummary = controller.logSummary
+                        },
+                    ) {
+                        Text("清空日志", fontSize = 12.sp)
+                    }
+                }
+                logMessage?.let { msg ->
+                    Text(
+                        text = msg,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
 
                 Row(
