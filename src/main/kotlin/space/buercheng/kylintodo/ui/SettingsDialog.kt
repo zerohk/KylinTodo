@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -110,9 +112,20 @@ fun SettingsDialog(
     controller: SettingsController,
     /** 执行导出，返回结果文本用于反馈 */
     onExportData: () -> String,
+    /** 导出节假日导入模板（Excel），返回结果文本 */
+    onExportHolidayTemplate: () -> String,
+    /** 导入节假日数据，返回结果文本（含逐行错误说明） */
+    onImportHolidays: () -> String,
+    /** 清空已导入的节假日数据，回退到内置数据 */
+    onClearHolidays: () -> String,
+    /** 读取当前已导入数据的概要，用于展示 */
+    holidaySummary: () -> String,
     onDismiss: () -> Unit,
 ) {
     var exportMessage by remember { mutableStateOf<String?>(null) }
+    var holidayMessage by remember { mutableStateOf<String?>(null) }
+    // 导入/清空后需要重新读取概要，故用可变状态而不是直接调用
+    var holidaySummaryText by remember { mutableStateOf(holidaySummary()) }
     var showAbout by remember { mutableStateOf(false) }
 
     if (showAbout) {
@@ -239,6 +252,68 @@ fun SettingsDialog(
                         }
                     }
                     exportMessage?.let { msg ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        ) {
+                            Text(
+                                text = msg,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(10.dp),
+                            )
+                        }
+                    }
+
+                    // ---------------- 节假日数据 ----------------
+                    SectionDivider()
+                    GroupTitle(Icons.Filled.DateRange, "节假日数据")
+
+                    // 状态说明：让用户随时知道"现在用的是内置还是导入的"
+                    Text(
+                        text = "当前数据：$holidaySummaryText",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "内置数据有固定覆盖范围，超出后该日期不再显示「休 / 班」。" +
+                            "可导出模板填写后导入，导入的数据优先于内置数据。",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = { holidayMessage = onExportHolidayTemplate() },
+                        ) {
+                            Text("导出模板", fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = {
+                                holidayMessage = onImportHolidays()
+                                holidaySummaryText = holidaySummary()
+                            },
+                        ) {
+                            Text("导入数据", fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = {
+                                holidayMessage = onClearHolidays()
+                                holidaySummaryText = holidaySummary()
+                            },
+                        ) {
+                            Text("清空", fontSize = 12.sp)
+                        }
+                    }
+
+                    holidayMessage?.let { msg ->
                         Surface(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             shape = RoundedCornerShape(8.dp),

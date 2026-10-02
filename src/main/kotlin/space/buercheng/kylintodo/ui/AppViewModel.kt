@@ -3,6 +3,9 @@ package space.buercheng.kylintodo.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import space.buercheng.kylintodo.data.HolidayTransfer
+import space.buercheng.kylintodo.domain.HolidayTable
+import space.buercheng.kylintodo.domain.OverlayLunarService
 import space.buercheng.kylintodo.data.TodoExporter
 import space.buercheng.kylintodo.domain.DayTodoStats
 import space.buercheng.kylintodo.domain.CalendarDay
@@ -37,11 +40,25 @@ import java.time.YearMonth
  */
 class AppViewModel(
     private val repository: TodoRepository,
-    private val lunarService: LunarService = LunarJavaService(),
+    /**
+     * 农历 / 节气 / 节假日数据源。
+     *
+     * 声明为 `var` 而非 `val`：用户导入节假日数据后需要用
+     * [OverlayLunarService] 重建一个"内置 + 导入"的叠加层，
+     * 使导入的「休 / 班」立即生效（见 [rebuildHolidayOverlay]）。
+     */
+    private var lunarService: LunarService = LunarJavaService(),
     /** 供测试注入固定日期，生产环境使用系统当前日期 */
     private val todayProvider: () -> LocalDate = { LocalDate.now() },
     /** 初始视图模式，默认月视图（需求 F-03） */
     initialViewMode: CalendarViewMode = CalendarViewMode.MONTH,
+    /**
+     * 节假日数据的导入/模板导出能力。
+     *
+     * 抽成接口的原因与导出待办相同：桌面用 AWT 文件对话框选文件，
+     * Android 需走 SAF；而**解析**逻辑（[HolidayImporter]）两端共用。
+     */
+    private val holidayTransfer: HolidayTransfer? = null,
 ) {
 
     /** 今天，用于高亮显示。 */
@@ -171,7 +188,9 @@ class AppViewModel(
     }
 
     init {
-        refresh()
+        // 启动时把**上次导入的**节假日数据叠加进来，否则重启后导入的内容
+        // 就不生效了（用户会以为导入丢了）。重建内部会调用 refresh()。
+        rebuildHolidayOverlay()
     }
 
     // ---------------- 视图切换与导航 ----------------
@@ -363,6 +382,97 @@ class AppViewModel(
         TodoExporter.describe(result)
     }.getOrElse { e ->
         "导出失败：${e.message ?: e::class.simpleName}"
+    }
+
+    // ---------------- 导入节假日数据（需求反馈） ----------------
+
+    /**
+     * 导出节假日导入模板（Excel 格式）。
+     *
+     * 模板含表头与几行示例，用户填完可直接导入。
+     * 文件位置由平台实现决定（桌面弹出保存对话框）。
+     */
+    fun exportHolidayTemplate(): String = runCatching {
+        holidayTransfer?.exportTemplate() ?: "当前环境不支持导出模板"
+    }.getOrElse { e ->
+        "导出模板失败：${e.message ?: e::class.simpleName}"
+    }
+
+    /**
+     * 导入用户的节假日数据。
+     *
+     * 成功后立即刷新日历，使用户马上看到「休 / 班」的变化。
+     * 解析失败的行不会中断整体导入，而是随结果一起返回，
+     * 由界面完整展示 —— 静默跳过会让用户以为导入成功却看不到变化。
+     */
+    fun importHolidays(): String {
+        val transfer = holidayTransfer
+            ?: return "当前环境不支持导入节假日数据"
+
+        // 文件选择与解析都可能失败（选错文件、文件损坏），统一兜底为可读文本。
+        // 注意不能用 runCatching + 非局部 return —— 那会让整个表达式变成
+        // Result<String> 而不是 String。
+        val result = runCatching { transfer.pickAndParse() }.getOrElse { e ->
+            return "导入失败：${e.message ?: e::class.simpleName}"
+        } ?: return "已取消导入"
+
+        if (result.rules.isEmpty()) {
+            return buildString {
+                appendLine("未能导入任何数据。")
+                result.errors.take(10).forEach { appendLine("· $it") }
+            }
+        }
+
+        // 用导入数据整体替换：用户重新导入修正表时，期望"以这份为准"
+        runCatching { repository.replaceAllHolidays(result.rules) }.getOrElse { e ->
+            return "写入数据库失败：${e.message ?: e::class.simpleName}"
+        }
+        // 重建叠加层，让新数据立即生效
+        rebuildHolidayOverlay()
+
+        return buildString {
+            appendLine("已导入 ${result.successCount} 条节假日数据。")
+            appendLine("覆盖范围：${result.rules.first().date} ~ ${result.rules.last().date}")
+            if (result.hasErrors) {
+                appendLine()
+                appendLine("以下 ${result.errors.size} 行未导入：")
+                result.errors.take(10).forEach { appendLine("· $it") }
+                if (result.errors.size > 10) {
+                    appendLine("· …（其余 ${result.errors.size - 10} 行略）")
+                }
+            }
+        }
+    }
+
+    /** 清空用户导入的节假日数据，回退到库内置数据。 */
+    fun clearImportedHolidays(): String = runCatching {
+        repository.replaceAllHolidays(emptyList())
+        rebuildHolidayOverlay()
+        "已清空导入的节假日数据，回退到内置数据。"
+    }.getOrElse { e ->
+        "清空失败：${e.message ?: e::class.simpleName}"
+    }
+
+    /** 当前导入数据的条数与覆盖范围，供设置界面展示。 */
+    fun importedHolidaySummary(): String {
+        val rules = repository.findAllHolidays()
+        if (rules.isEmpty()) return "尚未导入（当前使用内置数据）"
+        return "${rules.size} 条，覆盖 ${rules.first().date} ~ ${rules.last().date}"
+    }
+
+    /**
+     * 按当前仓库内容重建"内置 + 导入"的叠加层。
+     *
+     * [lunarService] 是 `val`，无法直接替换，因此这里把它改为可变引用。
+     * 重建而非增量更新：导入是低频操作（一年一两次），
+     * 重新构造一张表的成本可以忽略，但能避免增量维护出错的复杂逻辑。
+     */
+    private fun rebuildHolidayOverlay() {
+        lunarService = OverlayLunarService(
+            base = LunarJavaService(),
+            table = HolidayTable(repository.findAllHolidays()),
+        )
+        refresh()
     }
 
     // ---------------- 日期详情弹窗（双击日期触发） ----------------

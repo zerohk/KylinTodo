@@ -1,6 +1,7 @@
 package space.buercheng.kylintodo.testing
 
 import space.buercheng.kylintodo.domain.DayTodoStats
+import space.buercheng.kylintodo.domain.HolidayRule
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.domain.TodoRepository
 import java.time.LocalDate
@@ -68,6 +69,16 @@ class InMemoryTodoRepository : TodoRepository {
 
     override fun delete(id: String) {
         items.removeAll { it.id == id }
+    }
+
+    // ---------------- 用户导入的节假日 ----------------
+
+    private var holidays: List<HolidayRule> = emptyList()
+
+    override fun findAllHolidays(): List<HolidayRule> = holidays
+
+    override fun replaceAllHolidays(rules: List<HolidayRule>) {
+        holidays = rules.toList()
     }
 
     /** 仅供断言使用：当前全部记录（含排序前的原始顺序）。 */

@@ -1,6 +1,7 @@
 package space.buercheng.kylintodo.data
 
 import space.buercheng.kylintodo.domain.DayTodoStats
+import space.buercheng.kylintodo.domain.HolidayRule
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.TodoRepository
@@ -60,6 +61,19 @@ class SqliteTodoRepository(private val dbPath: Path) : TodoRepository {
                 """.trimIndent()
             )
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_todo_date ON todo(date)")
+
+            // 用户导入的节假日（设置 → 导入节假日数据）。
+            // 独立成表：它整表替换维护，且与待办无关联关系，
+            // 混在 todo 表里会让"清空导入"变成危险操作。
+            st.executeUpdate(
+                """
+                CREATE TABLE IF NOT EXISTS holiday (
+                    date    TEXT    PRIMARY KEY,
+                    is_work INTEGER NOT NULL DEFAULT 0,
+                    name    TEXT    NOT NULL DEFAULT ''
+                )
+                """.trimIndent()
+            )
 
             // 老库迁移：v1 的表没有 priority / tags 两列，这里补上。
             // 幂等，重复启动不会出错。
@@ -208,6 +222,58 @@ class SqliteTodoRepository(private val dbPath: Path) : TodoRepository {
         connection.prepareStatement("DELETE FROM todo WHERE id = ?").use { ps ->
             ps.setString(1, id)
             ps.executeUpdate()
+        }
+    }
+
+    override fun findAllHolidays(): List<HolidayRule> = synchronized(lock) {
+        connection.prepareStatement(
+            "SELECT date, is_work, name FROM holiday ORDER BY date ASC"
+        ).use { ps ->
+            ps.executeQuery().use { rs ->
+                buildList {
+                    while (rs.next()) {
+                        runCatching {
+                            HolidayRule(
+                                date = LocalDate.parse(rs.getString("date")),
+                                isWork = rs.getInt("is_work") != 0,
+                                name = rs.getString("name").orEmpty(),
+                            )
+                        }.getOrNull()?.let { add(it) }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 整体替换用户节假日规则。
+     *
+     * 放在**单个事务**里：整表替换若中途失败，用户会既丢失原有数据、
+     * 又没有新数据。事务保证要么全成、要么完全不变。
+     */
+    override fun replaceAllHolidays(rules: List<HolidayRule>): Unit = synchronized(lock) {
+        val previousAutoCommit = connection.autoCommit
+        try {
+            connection.autoCommit = false
+            connection.createStatement().use { it.executeUpdate("DELETE FROM holiday") }
+            connection.prepareStatement(
+                "INSERT INTO holiday (date, is_work, name) VALUES (?, ?, ?)"
+            ).use { ps ->
+                rules.forEach { rule ->
+                    ps.setString(1, rule.date.toString())
+                    ps.setInt(2, if (rule.isWork) 1 else 0)
+                    ps.setString(3, rule.name)
+                    ps.addBatch()
+                }
+                ps.executeBatch()
+            }
+            connection.commit()
+        } catch (e: Exception) {
+            runCatching { connection.rollback() }
+            LOG.warning("替换节假日数据失败，已回滚：${e.message}")
+            throw e
+        } finally {
+            runCatching { connection.autoCommit = previousAutoCommit }
         }
     }
 

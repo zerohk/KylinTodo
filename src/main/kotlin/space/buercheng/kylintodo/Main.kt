@@ -18,6 +18,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import space.buercheng.kylintodo.data.AppPaths
+import space.buercheng.kylintodo.data.DesktopHolidayTransfer
 import space.buercheng.kylintodo.data.SqliteTodoRepository
 import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.CalendarViewMode
@@ -84,6 +85,7 @@ fun main(args: Array<String>) {
                 repository = repository,
                 todayProvider = { options.initialDate ?: LocalDate.now() },
                 initialViewMode = options.initialView ?: CalendarViewMode.MONTH,
+                holidayTransfer = DesktopHolidayTransfer,
             ).also { vm ->
                 // 命令行要求时启动即打开桌面小窗（便于验证与日常使用）
                 if (options.widget) vm.changeWidgetVisibility(true)
@@ -199,6 +201,10 @@ fun main(args: Array<String>) {
                     SettingsDialog(
                         controller = settings,
                         onExportData = { viewModel.exportAllData() },
+                        onExportHolidayTemplate = { viewModel.exportHolidayTemplate() },
+                        onImportHolidays = { viewModel.importHolidays() },
+                        onClearHolidays = { viewModel.clearImportedHolidays() },
+                        holidaySummary = { viewModel.importedHolidaySummary() },
                         onDismiss = viewModel::dismissSettings,
                     )
                 }
