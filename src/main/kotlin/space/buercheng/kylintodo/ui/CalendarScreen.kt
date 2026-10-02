@@ -15,10 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -230,6 +229,18 @@ private fun CalendarToolbar(
                 text = if (viewModel.widgetVisible) "关闭小窗" else "桌面小窗",
                 fontSize = 13.sp,
                 modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+
+        // 设置入口（需求反馈第 5 条）
+        IconButton(
+            onClick = viewModel::openSettings,
+            modifier = Modifier.padding(end = 4.dp),
+        ) {
+            Icon(
+                Icons.Filled.Settings,
+                contentDescription = "设置",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 

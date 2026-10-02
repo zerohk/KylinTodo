@@ -3,6 +3,7 @@ package space.buercheng.kylintodo.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import space.buercheng.kylintodo.data.TodoExporter
 import space.buercheng.kylintodo.domain.CalendarDay
 import space.buercheng.kylintodo.domain.CalendarGridBuilder
 import space.buercheng.kylintodo.domain.CalendarPage
@@ -271,6 +272,35 @@ class AppViewModel(
     /** 关闭添加待办弹窗。 */
     fun dismissAddTodo() {
         addTodoTargetDate = null
+    }
+
+    // ---------------- 设置 ----------------
+
+    /**
+     * 设置弹窗是否可见。
+     *
+     * 放在 ViewModel 而不是界面本地状态：导出的结果提示、以及后续可能增加的
+     * 导入确认等都需要与业务数据交互，集中管理更清晰。
+     */
+    var settingsVisible: Boolean by mutableStateOf(false)
+        private set
+
+    fun openSettings() { settingsVisible = true }
+
+    fun dismissSettings() { settingsVisible = false }
+
+    /**
+     * 导出全部待办数据（需求反馈第 5 条）。
+     *
+     * 返回可直接显示给用户的文本，含导出条数与文件路径。
+     * 出错时返回可读的失败原因而不抛异常 —— 导出失败不应让界面崩溃。
+     */
+    fun exportAllData(): String = runCatching {
+        val items = repository.findAll()
+        val result = TodoExporter.export(items, TodoExporter.defaultExportDir())
+        TodoExporter.describe(result)
+    }.getOrElse { e ->
+        "导出失败：${e.message ?: e::class.simpleName}"
     }
 
     // ---------------- 日期详情弹窗（双击日期触发） ----------------

@@ -6,11 +6,15 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import space.buercheng.kylintodo.data.ThemeMode
 
 /**
  * 麒麟蓝主色。
@@ -147,53 +151,96 @@ fun configureFontRendering() {
     System.setProperty("sun.java2d.uiScale.enabled", "true")
 }
 
-private fun buildTypography(): Typography {
-    val family = chineseFontFamily
-    // Material 3 的 Typography() 构造器标注为实验性 API，需显式 opt-in
+/**
+ * 按字号倍率构建 Typography。
+ *
+ * 不用 `by lazy` 缓存：字号可在设置里切换，必须随倍率重建。
+ * 倍率只作用于字号，行高随之按比例放大，保持既有布局比例不变。
+ */
+private fun buildTypographyScaled(family: FontFamily, scale: Float): Typography {
     @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
     val base = Typography()
+
+    fun TextStyle.scaled(): TextStyle = copy(
+        fontFamily = family,
+        fontSize = fontSize * scale,
+        lineHeight = lineHeight * scale,
+    )
+
     return Typography(
-        displayLarge = base.displayLarge.copy(fontFamily = family),
-        displayMedium = base.displayMedium.copy(fontFamily = family),
-        displaySmall = base.displaySmall.copy(fontFamily = family),
-        headlineLarge = base.headlineLarge.copy(fontFamily = family),
-        headlineMedium = base.headlineMedium.copy(fontFamily = family),
-        headlineSmall = base.headlineSmall.copy(fontFamily = family),
-        titleLarge = base.titleLarge.copy(fontFamily = family),
-        titleMedium = base.titleMedium.copy(fontFamily = family),
-        titleSmall = base.titleSmall.copy(fontFamily = family),
-        bodyLarge = base.bodyLarge.copy(fontFamily = family),
-        bodyMedium = base.bodyMedium.copy(fontFamily = family),
-        bodySmall = base.bodySmall.copy(fontFamily = family),
-        labelLarge = base.labelLarge.copy(fontFamily = family),
-        labelMedium = base.labelMedium.copy(fontFamily = family),
-        labelSmall = base.labelSmall.copy(fontFamily = family),
+        displayLarge = base.displayLarge.scaled(),
+        displayMedium = base.displayMedium.scaled(),
+        displaySmall = base.displaySmall.scaled(),
+        headlineLarge = base.headlineLarge.scaled(),
+        headlineMedium = base.headlineMedium.scaled(),
+        headlineSmall = base.headlineSmall.scaled(),
+        titleLarge = base.titleLarge.scaled(),
+        titleMedium = base.titleMedium.scaled(),
+        titleSmall = base.titleSmall.scaled(),
+        bodyLarge = base.bodyLarge.scaled(),
+        bodyMedium = base.bodyMedium.scaled(),
+        bodySmall = base.bodySmall.scaled(),
+        labelLarge = base.labelLarge.scaled(),
+        labelMedium = base.labelMedium.scaled(),
+        labelSmall = base.labelSmall.scaled(),
     )
 }
 
-private val AppTypography: Typography by lazy { buildTypography() }
+/**
+ * 当前字号倍率。
+ *
+ * 日历格子等处使用的是硬编码字号的 [TextStyle]（而非 Material 的
+ * typography），它们需要自己读取倍率才能跟随设置缩放，因此通过
+ * CompositionLocal 下发。
+ */
+val LocalFontScale = staticCompositionLocalOf { 1.0f }
 
-/** 日历格子专用字号：公历日期稍大，农历/节气更小以避免挤压。 */
-val GregorianDayTextStyle = TextStyle(
+/**
+ * 日历格子专用字号：公历日期稍大，农历/节气更小以避免挤压。
+ *
+ * 是 `@Composable` 的取值函数而非常量：字号需随设置里的字号档位缩放。
+ */
+@Composable
+fun gregorianDayTextStyle(): TextStyle = TextStyle(
     fontFamily = chineseFontFamily,
-    fontSize = 15.sp,
+    fontSize = 15.sp * LocalFontScale.current,
     fontWeight = FontWeight.Medium,
 )
 
-val SubLabelTextStyle = TextStyle(
+@Composable
+fun subLabelTextStyle(): TextStyle = TextStyle(
     fontFamily = chineseFontFamily,
-    fontSize = 10.sp,
+    fontSize = 10.sp * LocalFontScale.current,
     fontWeight = FontWeight.Normal,
 )
 
+/**
+ * 应用主题。
+ *
+ * @param mode 外观模式（跟随系统 / 浅色 / 深色），对应设置里的「皮肤」
+ * @param fontScale 字号倍率，对应设置里的「字体大小」
+ */
 @Composable
 fun KylinTodoTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    mode: ThemeMode = ThemeMode.SYSTEM,
+    fontScale: Float = 1.0f,
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = AppTypography,
-        content = content,
-    )
+    val dark = when (mode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    val typography = remember(fontScale) {
+        buildTypographyScaled(chineseFontFamily, fontScale)
+    }
+
+    CompositionLocalProvider(LocalFontScale provides fontScale) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkColors else LightColors,
+            typography = typography,
+            content = content,
+        )
+    }
 }

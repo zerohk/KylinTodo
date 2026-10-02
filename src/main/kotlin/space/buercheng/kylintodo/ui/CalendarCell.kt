@@ -153,14 +153,14 @@ private fun DayNumber(
             ) {
                 Text(
                     text = day.gregorianDay.toString(),
-                    style = GregorianDayTextStyle,
+                    style = gregorianDayTextStyle(),
                     color = scheme.onPrimary,
                 )
             }
         } else {
             Text(
                 text = day.gregorianDay.toString(),
-                style = GregorianDayTextStyle,
+                style = gregorianDayTextStyle(),
                 color = holidayAwareDayColor(day),
             )
         }
@@ -258,7 +258,7 @@ private fun SubLabel(
     if (text.isBlank()) return
     Text(
         text = text,
-        style = SubLabelTextStyle,
+        style = subLabelTextStyle(),
         color = if (day.solarTerm != null) {
             SolarTermGreen
         } else {

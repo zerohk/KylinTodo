@@ -23,6 +23,9 @@ import space.buercheng.kylintodo.domain.CalendarViewMode
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.ui.AddTodoDialog
 import space.buercheng.kylintodo.ui.AppViewModel
+import space.buercheng.kylintodo.data.SettingsStore
+import space.buercheng.kylintodo.ui.SettingsController
+import space.buercheng.kylintodo.ui.SettingsDialog
 import space.buercheng.kylintodo.ui.AppIcon
 import space.buercheng.kylintodo.ui.CalendarScreen
 import space.buercheng.kylintodo.ui.ClickProbeSupport
@@ -133,6 +136,10 @@ fun main(args: Array<String>) {
         // 调试状态栏开关（Ctrl+Shift+D）
         val debugState = rememberDebugOverlayState(initiallyVisible = options.debugOverlay)
 
+        // 偏好设置（皮肤 / 字号 / 启动行为），启动时从系统偏好存储读取。
+        // 用 remember 持有，保证整个应用生命周期内是同一份状态。
+        val settings = remember { SettingsController(SettingsStore.load()) }
+
         Window(
             onCloseRequest = ::exitApplication,
             title = APP_DISPLAY_NAME,
@@ -153,7 +160,17 @@ fun main(args: Array<String>) {
                 handleDebugShortcut(event, debugState)
             },
         ) {
-            KylinTodoTheme {
+            // 命令行要求时启动即打开设置弹窗。
+            // 必须放在窗口的 composable 内容里 —— 外层的 application {} 不是
+            // composable 上下文，放在那里 LaunchedEffect 不会执行。
+            LaunchedEffect(Unit) {
+                if (options.settingsOpen) viewModel.openSettings()
+            }
+
+            KylinTodoTheme(
+                mode = settings.themeMode,
+                fontScale = settings.scaleValue,
+            ) {
                 // 用 Column 包住：主题的 content 是单个可组合项，
                 // 直接并列两个兄弟节点会互相重叠而非上下排列。
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -166,6 +183,15 @@ fun main(args: Array<String>) {
                     Box(modifier = Modifier.weight(1f)) {
                         CalendarScreen(viewModel = viewModel)
                     }
+                }
+
+                // 设置弹窗（需求反馈第 5 条）
+                if (viewModel.settingsVisible) {
+                    SettingsDialog(
+                        controller = settings,
+                        onExportData = { viewModel.exportAllData() },
+                        onDismiss = viewModel::dismissSettings,
+                    )
                 }
 
                 // 调试用：在应用自身进程内驱动真实鼠标点击，自动重放用户的
@@ -206,7 +232,7 @@ fun main(args: Array<String>) {
         // ---------- 桌面小窗（需求第 5 条方案 A）----------
         // 必须是主窗口的**兄弟**窗口，不能嵌套在 Window 的内容里。
         if (viewModel.widgetVisible) {
-            DesktopWidgetWindow(viewModel = viewModel)
+            DesktopWidgetWindow(viewModel = viewModel, settings = settings)
         }
     }
 }
@@ -330,7 +356,7 @@ private fun JumpSimulator(viewModel: AppViewModel, javaWindow: java.awt.Window?)
  * 否则高分屏上拖动速度会明显偏离鼠标。
  */
 @Composable
-private fun DesktopWidgetWindow(viewModel: AppViewModel) {
+private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsController) {
     val density = LocalDensity.current.density
 
     val widgetState = rememberWindowState(
@@ -350,7 +376,10 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel) {
         // 小窗尺寸固定，避免误拖边框改变布局
         resizable = false,
     ) {
-        KylinTodoTheme {
+        KylinTodoTheme(
+            mode = settings.themeMode,
+            fontScale = settings.scaleValue,
+        ) {
             DesktopWidgetScreen(
                 day = viewModel.selectedCalendarDay,
                 todos = viewModel.selectedDateTodos,
@@ -408,6 +437,8 @@ private data class LaunchOptions(
     val simulateClicks: Boolean = false,
     /** 启动时即显示调试状态栏（等价于启动后按 Ctrl+Shift+D） */
     val debugOverlay: Boolean = false,
+    /** 启动时即打开设置弹窗，便于截图与人工核验 */
+    val settingsOpen: Boolean = false,
 )
 
 /**
@@ -424,6 +455,7 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
     var traceJump = false
     var simulateClicks = false
     var debugOverlay = false
+    var settingsOpen = false
 
     args.forEach { arg ->
         when {
@@ -433,6 +465,7 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             arg == "--trace-jump" -> traceJump = true
             arg == "--simulate-clicks" -> simulateClicks = true
             arg == "--debug" -> debugOverlay = true
+            arg == "--settings" -> settingsOpen = true
 
             arg.startsWith("--view=") -> {
                 view = when (arg.removePrefix("--view=").lowercase()) {
@@ -461,5 +494,20 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             }
         }
     }
-    return LaunchOptions(view, date, seed, widget, openAddDialog, traceJump, simulateClicks, debugOverlay)
+    // 用**具名参数**构造：LaunchOptions 的每个字段都有默认值，
+    // 位置参数一旦漏传就会静默取默认值、编译器不报错。
+    // 此前 settingsOpen 就是这样被漏掉的 —— 分支明明命中、赋值也执行了，
+    // 却因为构造时没传而始终是 false，排查了很久。
+    // 具名写法让"漏传"变成显而易见的差异。
+    return LaunchOptions(
+        initialView = view,
+        initialDate = date,
+        seedTodo = seed,
+        widget = widget,
+        openAddDialog = openAddDialog,
+        traceJump = traceJump,
+        simulateClicks = simulateClicks,
+        debugOverlay = debugOverlay,
+        settingsOpen = settingsOpen,
+    )
 }
