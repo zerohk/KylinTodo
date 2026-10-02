@@ -111,7 +111,7 @@ fun CalendarCell(
                     isToday = isToday,
                     modifier = Modifier.alpha(outOfPeriodAlpha),
                 )
-                AddTodoButton(onClick = { onAddTodo(day.date) })
+                AddTodoButton(date = day.date, onClick = { onAddTodo(day.date) })
             }
 
             // ---------- 底部：待办数量 + 右下角农历/节气 ----------
@@ -234,13 +234,16 @@ private fun DayTypeBadge(type: DayType) {
 
 /** 右上角「+」按钮 —— 点击弹出该日期的待办添加弹窗。 */
 @Composable
-private fun AddTodoButton(onClick: () -> Unit) {
+private fun AddTodoButton(date: LocalDate, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .size(18.dp)
             .clip(CircleShape)
             .background(scheme.primary.copy(alpha = 0.12f))
+            // 用 testTag 单独标记：它与格子整体的点击是两条独立路径，
+            // 排查"点某天后月份回退"时必须能分别驱动。
+            .testTag(UiTestTags.addButton(date))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
