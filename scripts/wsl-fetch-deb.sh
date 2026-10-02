@@ -6,7 +6,7 @@
 # Gradle 守护进程而挂住，而产物本身是好的；本脚本只做校验与回传，
 # 可重复执行且不会挂住。
 
-DEB=/root/kylintodo-deb/build/compose/binaries/main/deb/dazhi-calendar_1.1.0_amd64.deb
+DEB=/root/kylintodo-deb/build/compose/binaries/main/deb/dazhi-calendar_1.1.1_amd64.deb
 DEST=/mnt/e/Kotlin/DSH-Kylin/build/deb-output
 
 if [ ! -f "$DEB" ]; then
@@ -18,7 +18,7 @@ mkdir -p "$DEST"
 cp -f "$DEB" "$DEST/"
 
 echo "=== 产物 ==="
-ls -l "$DEST/dazhi-calendar_1.1.0_amd64.deb"
+ls -l "$DEST/dazhi-calendar_1.1.1_amd64.deb"
 
 echo ""
 echo "=== 包信息 ==="
@@ -48,8 +48,8 @@ rm -rf "$TMP"
 
 echo ""
 echo "=== SHA256 ==="
-sha256sum "$DEST/dazhi-calendar_1.1.0_amd64.deb" | tee "$DEST/dazhi-calendar_1.1.0_amd64.deb.sha256"
+sha256sum "$DEST/dazhi-calendar_1.1.1_amd64.deb" | tee "$DEST/dazhi-calendar_1.1.1_amd64.deb.sha256"
 
 echo ""
 echo "=== 完成 ==="
-echo "Windows 路径: E:\\Kotlin\\DSH-Kylin\\build\\deb-output\\dazhi-calendar_1.1.0_amd64.deb"
+echo "Windows 路径: E:\\Kotlin\\DSH-Kylin\\build\\deb-output\\dazhi-calendar_1.1.1_amd64.deb"
