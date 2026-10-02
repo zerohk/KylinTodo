@@ -1,10 +1,14 @@
 package space.buercheng.kylintodo
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -23,6 +27,9 @@ import space.buercheng.kylintodo.ui.CalendarScreen
 import space.buercheng.kylintodo.ui.ClickProbeSupport
 import space.buercheng.kylintodo.ui.DayInfoDialog
 import space.buercheng.kylintodo.ui.DesktopWidgetScreen
+import space.buercheng.kylintodo.ui.rememberDebugOverlayState
+import space.buercheng.kylintodo.ui.handleDebugShortcut
+import space.buercheng.kylintodo.ui.DebugStatusBar
 import space.buercheng.kylintodo.ui.KylinTodoTheme
 import space.buercheng.kylintodo.ui.configureFontRendering
 import space.buercheng.kylintodo.ui.nextWindowPosition
@@ -113,6 +120,9 @@ fun main(args: Array<String>) {
             position = WindowPosition(androidx.compose.ui.Alignment.Center),
         )
 
+        // 调试状态栏开关（Ctrl+Shift+D）
+        val debugState = rememberDebugOverlayState(initiallyVisible = options.debugOverlay)
+
         Window(
             onCloseRequest = ::exitApplication,
             title = "麒麟日历 · KylinTodo",
@@ -126,9 +136,26 @@ fun main(args: Array<String>) {
             // 吸收多余宽度，侧栏固定 300dp，行高按可用高度除以 6 计算，
             // 窗口拉大拉小都不会出现滚动条或错位。
             resizable = true,
+            // 全局快捷键：Ctrl+Shift+D 开关调试状态栏。
+            // 用 Preview 阶段拦截，保证任何子组件都不会先消费掉这个组合键。
+            onPreviewKeyEvent = { event ->
+                handleDebugShortcut(event, debugState)
+            },
         ) {
             KylinTodoTheme {
-                CalendarScreen(viewModel = viewModel)
+                // 用 Column 包住：主题的 content 是单个可组合项，
+                // 直接并列两个兄弟节点会互相重叠而非上下排列。
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // 调试状态栏：把 anchor / selected / 网格范围等关键状态平铺显示，
+                    // 供用户复现问题时截图 —— 因为 Compose 无法用合成输入自动化点击。
+                    if (debugState.visible) {
+                        DebugStatusBar(viewModel = viewModel)
+                    }
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        CalendarScreen(viewModel = viewModel)
+                    }
+                }
 
                 // 调试用：在应用自身进程内驱动真实鼠标点击，自动重放用户的
                 // 操作序列并核对状态。仅在 --simulate-clicks 时启用。
@@ -367,6 +394,8 @@ private data class LaunchOptions(
      * 需与 -Pprobe 一起使用（探针提供构件的真实坐标）。
      */
     val simulateClicks: Boolean = false,
+    /** 启动时即显示调试状态栏（等价于启动后按 Ctrl+Shift+D） */
+    val debugOverlay: Boolean = false,
 )
 
 /**
@@ -382,6 +411,7 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
     var openAddDialog = false
     var traceJump = false
     var simulateClicks = false
+    var debugOverlay = false
 
     args.forEach { arg ->
         when {
@@ -390,6 +420,7 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             arg == "--add" -> openAddDialog = true
             arg == "--trace-jump" -> traceJump = true
             arg == "--simulate-clicks" -> simulateClicks = true
+            arg == "--debug" -> debugOverlay = true
 
             arg.startsWith("--view=") -> {
                 view = when (arg.removePrefix("--view=").lowercase()) {
@@ -418,5 +449,5 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             }
         }
     }
-    return LaunchOptions(view, date, seed, widget, openAddDialog, traceJump, simulateClicks)
+    return LaunchOptions(view, date, seed, widget, openAddDialog, traceJump, simulateClicks, debugOverlay)
 }
