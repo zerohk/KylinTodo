@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -179,7 +180,9 @@ private fun CalendarToolbar(
         ) {
             IconButton(
                 onClick = viewModel::goPrevious,
-                modifier = Modifier.recordBounds("btn:prev"),
+                modifier = Modifier
+                    .recordBounds("btn:prev")
+                    .testTag(UiTestTags.PREV_BUTTON),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一页")
             }
@@ -194,7 +197,9 @@ private fun CalendarToolbar(
             )
             IconButton(
                 onClick = viewModel::goNext,
-                modifier = Modifier.recordBounds("btn:next"),
+                modifier = Modifier
+                    .recordBounds("btn:next")
+                    .testTag(UiTestTags.NEXT_BUTTON),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一页")
             }

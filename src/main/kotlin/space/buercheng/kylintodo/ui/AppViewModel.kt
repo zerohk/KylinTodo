@@ -76,6 +76,29 @@ class AppViewModel(
         private set
 
     /**
+     * 最近一次翻页调用的执行轨迹，供测试读取。
+     *
+     * 用字段而非 println：Compose 测试框架会吞掉被测组件的标准输出，
+     * 日志在测试报告里看不到，断言也就无从下手。
+     */
+    var navigateTrace: String = ""
+        private set
+
+    /**
+     * 本实例的创建序号，仅用于测试识别"读到的与界面渲染的不是同一个实例"。
+     *
+     * 保留它是因为这个坑值得留下痕迹：测试若忘记用 `remember` 包住
+     * ViewModel，每次重组都会新建实例，断言便会看到"状态没更新"的假象，
+     * 而生产代码其实完全正常。有了序号，这类问题一眼可辨。
+     */
+    val instanceId: Int = counter++
+
+    private companion object {
+        /** 仅用于诊断：记录创建过多少个 AppViewModel 实例。 */
+        var counter = 0
+    }
+
+    /**
      * 日期详情弹窗的目标日期；为 null 表示弹窗关闭。
      *
      * 对应需求变更：双击日历中的某一天弹出该窗口，可查看/添加该日待办。
@@ -173,7 +196,9 @@ class AppViewModel(
      */
     private fun navigate(step: (LocalDate) -> LocalDate) {
         val next = step(anchorDate)
+        navigateTrace = "navigate: $anchorDate -> $next"
         anchorDate = next
+        navigateTrace = "$navigateTrace | 赋值后=$anchorDate"
         selectedDate = when (viewMode) {
             // 月视图保持"日"不变（如从 10月1日 翻到 9月1日），更符合直觉
             CalendarViewMode.MONTH -> {

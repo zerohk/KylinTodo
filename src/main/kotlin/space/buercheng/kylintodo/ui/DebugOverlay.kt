@@ -38,13 +38,13 @@ import java.time.LocalDate
  * 实时调试状态栏。
  *
  * ## 用途
- * 用户报告「点击日期后月份跳到上一个月」，但状态模型的穷举测试与运行时
- * 插桩都无法复现，且 Compose Desktop 无法用合成输入自动化点击。
- * 因此提供一个**可随时开关的界面状态栏**：用户按下快捷键后，界面顶部会
- * 显示锚点、选中日、网格范围、周号等全部关键状态。
+ * 用户报告「点击日期后月份跳到上一个月」，但状态模型的穷举测试与真实组件树
+ * 的 UI 测试都无法复现。因此提供一个**可随时开关的界面状态栏**，
+ * 并记录**每次变化前后**的状态 —— 用户复现问题时只需截图，
+ * 就能看出到底是哪个状态在何时被改成了什么。
  *
- * 这样用户复现问题时只需截图，就能看到点击**实际发生了什么**，
- * 无需翻日志、也无需我远程猜测。
+ * 之所以需要"变化历史"而不只是当前值：当前值只能证明"现在是什么"，
+ * 无法区分"点击前就是错的"与"点击后被改错了"。
  *
  * ## 开关方式
  * `Ctrl+Shift+D`。默认关闭，不影响正常使用与视觉。
@@ -77,21 +77,42 @@ fun handleDebugShortcut(event: androidx.compose.ui.input.key.KeyEvent, state: De
     return false
 }
 
+/** 状态变化记录中的一条。 */
+private data class StateChange(
+    val anchor: LocalDate,
+    val selected: LocalDate,
+    val title: String,
+    val gridRange: String,
+    val mode: String,
+)
+
 /**
- * 调试状态栏本体：把 ViewModel 的关键状态平铺出来。
+ * 调试状态栏本体。
  *
- * 字段选择针对当前排查的问题：
- *  - anchor / selected：锚点与选中日是否如预期
- *  - page：网格实际覆盖范围（月视图为 42 天）
- *  - pageAnchor：CalendarPage 自己的锚点，应为锚点日期
- *  - 周号：与周数显示联动
- *  - today：判断是否发生了"跳回今天"
+ * 除当前状态外，还保留最近若干次**变化**的快照。这使"点击后月份变了"
+ * 这类问题可以被直接观察：对比相邻两条记录即可看出点击把哪个字段改成了什么。
  */
 @Composable
 fun DebugStatusBar(viewModel: AppViewModel, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val page = viewModel.page
     val today: LocalDate = viewModel.today
+
+    // 记录状态变化历史。用 List 快照而非只留当前值，
+    // 因为当前值无法区分"点击前就是错的"与"点击后被改错了"。
+    val history = remember { mutableListOf<StateChange>() }
+    val current = StateChange(
+        anchor = viewModel.anchorDate,
+        selected = viewModel.selectedDate,
+        title = viewModel.pageTitle,
+        gridRange = "${page.days.firstOrNull()?.date}~${page.days.lastOrNull()?.date}",
+        mode = viewModel.viewMode.name,
+    )
+    // 只在状态真正变化时追加，避免每次重组都记一条
+    if (history.isEmpty() || history.last() != current) {
+        history += current
+        while (history.size > 8) history.removeAt(0)
+    }
 
     Column(
         modifier = modifier
@@ -108,13 +129,14 @@ fun DebugStatusBar(viewModel: AppViewModel, modifier: Modifier = Modifier) {
                 color = Color(0xFFFBBF24),
             )
             Text(
-                text = "   Ctrl+Shift+D 关闭",
+                text = "   Ctrl+Shift+D 关闭 · 变化 ${history.size - 1} 次",
                 fontSize = 10.sp,
                 color = Color(0xFF9CA3AF),
             )
         }
         DebugLine("anchorDate", viewModel.anchorDate.toString(), Color(0xFF93C5FD))
         DebugLine("selectedDate", viewModel.selectedDate.toString(), Color(0xFF93C5FD))
+        DebugLine("pageTitle", viewModel.pageTitle, Color(0xFFFDE68A))
         DebugLine(
             "viewMode",
             viewModel.viewMode.name,
@@ -126,7 +148,6 @@ fun DebugStatusBar(viewModel: AppViewModel, modifier: Modifier = Modifier) {
             Color(0xFFFDE68A),
         )
         DebugLine("pageAnchor", page.anchor.toString(), Color(0xFFFDE68A))
-        DebugLine("pageTitle", viewModel.pageTitle, Color(0xFFFDE68A))
         DebugLine(
             "week",
             "${WeekNumbering.weekBasedYear(viewModel.selectedDate)}" +
@@ -153,6 +174,30 @@ fun DebugStatusBar(viewModel: AppViewModel, modifier: Modifier = Modifier) {
             "${viewModel.selectedDateTodos.size} 条",
             Color(0xFFA7F3D0),
         )
+
+        // 变化历史：最近的在最下，便于对照点击前后
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .height(1.dp)
+                .background(Color(0xFF374151)),
+        )
+        Text(
+            text = "变化历史（旧 → 新，最近一次在最下）",
+            fontSize = 10.sp,
+            color = Color(0xFF9CA3AF),
+        )
+        history.forEachIndexed { i, h ->
+            val isLatest = i == history.lastIndex
+            Text(
+                text = "#${i + 1} anchor=${h.anchor} selected=${h.selected} " +
+                    "标题=${h.title} 网格=${h.gridRange} [${h.mode}]",
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = if (isLatest) Color(0xFFFBBF24) else Color(0xFF9CA3AF),
+            )
+        }
     }
     Box(
         modifier = Modifier

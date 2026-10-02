@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -84,7 +85,11 @@ fun CalendarCell(
             // 记录该格子的实际窗口坐标与点击命中，用于排查"点到的格子
             // 与预期不一致"这类只在 GUI 层出现的问题。
             .recordCellBounds(day.date)
-            .tapProbe("${day.date}"),
+            .tapProbe("${day.date}")
+            // 可测性标记：Compose 测试框架靠它精确定位到"哪一天"的格子。
+            // 网格里同一天号可能出现多次（相邻月份溢出），只靠日期文本无法区分，
+            // 因此测试与生产都用「日期 → tag」这一个统一规则。
+            .testTag(cellTestTag(day.date)),
         color = when {
             isToday -> scheme.primaryContainer.copy(alpha = 0.45f)
             else -> scheme.surface
