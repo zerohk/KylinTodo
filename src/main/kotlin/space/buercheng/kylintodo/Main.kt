@@ -19,6 +19,7 @@ import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import space.buercheng.kylintodo.data.AppPaths
 import space.buercheng.kylintodo.data.DesktopHolidayTransfer
+import space.buercheng.kylintodo.data.SingleInstanceGuard
 import space.buercheng.kylintodo.data.SqliteTodoRepository
 import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.CalendarViewMode
@@ -61,6 +62,23 @@ fun main(args: Array<String>) {
     configureFontRendering()
 
     val options = parseArgs(args)
+
+    // 单实例守卫：必须在创建任何窗口之前完成。
+    // 用户多次点击图标会起多个进程、各自开窗；更严重的是两个进程同时写
+    // 同一个 SQLite 文件会有冲突风险。这里用文件锁互斥，
+    // 拿不到锁说明已有实例在跑，直接退出而不是再开一个窗口。
+    //
+    // 允许 --widget 等调试参数绕过？不 —— 调试时也不该有多实例，
+    // 否则"小窗与主窗各连一个数据库"的问题会被掩盖。
+    val guard = SingleInstanceGuard.tryAcquire()
+    if (guard == null) {
+        println("[KylinTodo] 检测到已有实例正在运行，本次启动退出。")
+        // 用 0 退出码：这不是错误，而是"已有实例"的正常情况。
+        // 返回非零会让桌面环境的启动器弹出"启动失败"提示。
+        return
+    }
+    // 注册关闭钩子，确保异常退出时也释放（操作系统本会释放，这里求稳）
+    Runtime.getRuntime().addShutdownHook(Thread { guard.release() })
 
     println("[KylinTodo] 数据目录: ${AppPaths.dataDirectory()}")
     println("[KylinTodo] 中文字体: $selectedChineseFontName")

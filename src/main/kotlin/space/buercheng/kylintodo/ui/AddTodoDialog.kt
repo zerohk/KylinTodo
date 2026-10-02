@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -112,7 +113,14 @@ fun AddTodoDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            modifier = Modifier.width(520.dp),
+            // 宽度自适应，**不能写死 520dp**：
+            // 桌面小窗只有 300dp 宽，写死会让弹窗超出窗口边界，把
+            // 「取消 / 关闭」裁到窗口外而点不到 —— 用户表现为
+            // "小窗里添加待办时没法退出，只能提交"。
+            // 因此改成「最多 520dp，且不超过可用宽度的 94%」。
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth(0.94f),
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 4.dp,
