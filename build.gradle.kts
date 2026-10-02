@@ -67,13 +67,17 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            // 显示名称改为「大智桌面日历」。
-            // 注意：Linux 的 .deb 包名（kylintodo）保持英文小写 —— dpkg 对
-            // 非 ASCII 包名支持不佳，且改包名会让已安装用户无法平滑升级。
-            // packageName 只影响安装目录名与可执行文件名，这里一并改为英文，
-            // 中文名称通过 desktop 文件的 Name 字段呈现。
+
+            // 让 jpackage 能找到我们自己的图标。
+            // 此前没设它，打包产物用的是 Compose 的默认图标
+            // （createDistributable.args.txt 里是 default-icon-windows.ico），
+            // 程序内 Window(icon=...) 与安装包图标因此不一致。
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("src/main/resources"))
+
             packageName = "dazhi-calendar"
-            packageVersion = "1.0.0"
+            // 版本号同时决定安装包文件名，必须随每次发布递增，
+            // 否则新包会与旧包重名、覆盖下载链接。
+            packageVersion = "1.1.0"
             description = "大智桌面日历 — 面向银河麒麟的日历与待办应用"
             vendor = "zerohk"
 
@@ -83,11 +87,16 @@ compose.desktop {
                 debMaintainer = "zerohk"
                 menuGroup = "Utility"
                 appCategory = "Utility"
+                // Linux 没有单一图标文件的要求，jpackage 会用 png 目录
+                iconFile.set(project.file("src/main/resources/icon/dazhi-calendar.png"))
             }
             windows {
                 menuGroup = "大智桌面日历"
                 // 升级时沿用同一 UUID，避免被系统当作两个不同的应用
                 upgradeUuid = "8F2A7C41-5B3E-4D6A-9C18-2E7B4A1D9F30"
+                // Windows 需要 .ico，且必须内嵌多尺寸（16/32/48/256），
+                // 否则任务栏与资源管理器会各自糊掉。
+                iconFile.set(project.file("src/main/resources/icon/dazhi-calendar.ico"))
             }
 
             // 显式声明运行时镜像需要的 JDK 模块。

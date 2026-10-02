@@ -21,7 +21,7 @@ object AppInfo {
     const val ENGLISH_NAME = "Dazhi Desktop Calendar"
 
     /** 版本号，与 build.gradle.kts 的 packageVersion 保持一致。 */
-    const val VERSION = "1.0.0"
+    const val VERSION = "1.1.0"
 
     /** 一句话描述。 */
     const val DESCRIPTION = "面向银河麒麟操作系统的日历与待办应用"
