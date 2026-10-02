@@ -20,6 +20,7 @@ import androidx.compose.ui.window.WindowScope
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import space.buercheng.kylintodo.data.AppPaths
+import space.buercheng.kylintodo.data.DesktopDataExporter
 import space.buercheng.kylintodo.data.DesktopHolidayTransfer
 import space.buercheng.kylintodo.data.SingleInstanceGuard
 import space.buercheng.kylintodo.data.SqliteTodoRepository
@@ -131,6 +132,7 @@ fun main(args: Array<String>) {
                 repository = repository,
                 todayProvider = { options.initialDate ?: LocalDate.now() },
                 initialViewMode = options.initialView ?: CalendarViewMode.MONTH,
+                dataExporter = DesktopDataExporter,
                 holidayTransfer = DesktopHolidayTransfer,
             ).also { vm ->
                 // 命令行要求时启动即打开桌面小窗（便于验证与日常使用）

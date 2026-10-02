@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import space.buercheng.kylintodo.data.HolidayTransfer
 import space.buercheng.kylintodo.domain.HolidayTable
 import space.buercheng.kylintodo.domain.OverlayLunarService
+import space.buercheng.kylintodo.data.DataExporter
 import space.buercheng.kylintodo.data.TodoExporter
 import space.buercheng.kylintodo.domain.DayTodoStats
 import space.buercheng.kylintodo.domain.CalendarDay
@@ -52,6 +53,13 @@ class AppViewModel(
     private val todayProvider: () -> LocalDate = { LocalDate.now() },
     /** 初始视图模式，默认月视图（需求 F-03） */
     initialViewMode: CalendarViewMode = CalendarViewMode.MONTH,
+    /**
+     * 待办数据导出能力（需求 1：导出路径可选）。
+     *
+     * 为 null 时导出入口返回明确提示而不是崩溃 ——
+     * 这样单元测试无需提供文件对话框即可构造 ViewModel。
+     */
+    private val dataExporter: DataExporter? = null,
     /**
      * 节假日数据的导入/模板导出能力。
      *
@@ -377,9 +385,9 @@ class AppViewModel(
      * 出错时返回可读的失败原因而不抛异常 —— 导出失败不应让界面崩溃。
      */
     fun exportAllData(): String = runCatching {
-        val items = repository.findAll()
-        val result = TodoExporter.export(items, TodoExporter.defaultExportDir())
-        TodoExporter.describe(result)
+        val exporter = dataExporter
+            ?: return "导出不可用：当前环境未提供导出实现"
+        exporter.exportAll(repository.findAll())
     }.getOrElse { e ->
         "导出失败：${e.message ?: e::class.simpleName}"
     }
