@@ -13,6 +13,7 @@ import space.buercheng.kylintodo.domain.LunarService
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.TodoRepository
+import space.buercheng.kylintodo.domain.WeekNumbering
 import space.buercheng.kylintodo.domain.startOfWeekMonday
 import java.time.LocalDate
 import java.time.YearMonth
@@ -190,6 +191,34 @@ class AppViewModel(
         refresh()
     }
 
+    /**
+     * 当前选中日期所在的周编号显示文本，如「2026 年 第 40 周」。
+     *
+     * 采用 ISO-8601 规则（周一为一周之首），与日历网格的列对齐方式一致。
+     */
+    val currentWeekLabel: String
+        get() = WeekNumbering.label(selectedDate)
+
+    /** 当前选中日期所属周编号对应的年份。 */
+    val currentWeekYear: Int
+        get() = WeekNumbering.weekBasedYear(selectedDate)
+
+    /** 当前年份的全部周选项，供下拉展示。 */
+    fun weekOptionsForCurrentYear(): List<Pair<Int, String>> =
+        WeekNumbering.allWeeksOfYear(currentWeekYear)
+
+    /**
+     * 跳转到指定年份的第 [week] 周。
+     *
+     * 跳转后锚点与选中日都落在该周的周一，保证日历页与侧栏列表一致。
+     */
+    fun goToWeek(year: Int, week: Int) {
+        val monday = WeekNumbering.mondayOfWeek(year, week)
+        anchorDate = monday
+        selectedDate = monday
+        refresh()
+    }
+
     // ---------------- 待办操作 ----------------
 
     /**
@@ -227,6 +256,17 @@ class AppViewModel(
             todoCount = 0,
         )
     }
+
+    /**
+     * 调试用：把内部状态导出为一行文本，便于在真实运行时核对。
+     *
+     * 之所以需要它：Compose 界面无法用合成鼠标事件驱动，单元测试又只覆盖
+     * 状态模型。当两者结论不一致时，需要一个能在真实进程里观察状态的出口。
+     */
+    fun debugState(tag: String): String =
+        "[STATE] $tag | anchor=$anchorDate selected=$selectedDate mode=$viewMode | " +
+            "pageRange=${page.days.firstOrNull()?.date}~${page.days.lastOrNull()?.date} | " +
+            "pageAnchor=${page.anchor} | addTarget=$addTodoTargetDate"
 
     /** 关闭添加待办弹窗。 */
     fun dismissAddTodo() {
@@ -376,7 +416,11 @@ class AppViewModel(
         page = when (viewMode) {
             CalendarViewMode.MONTH -> CalendarGridBuilder.buildMonth(
                 month = YearMonth.from(anchorDate),
-                selected = selectedDate,
+                // 传入的是**锚点日期**而不是选中日期。
+                // 此前这里传 selectedDate，导致 CalendarPage.anchor 会随
+                // "选中了哪一天"而变化，语义被污染 —— 页锚点应当只表示
+                // 这一页代表哪个月，滚动高亮由 CalendarDay 自身表达。
+                selected = anchorDate,
                 dayEnricher = enricher,
             )
 

@@ -30,6 +30,10 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -37,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import space.buercheng.kylintodo.domain.CalendarViewMode
+import space.buercheng.kylintodo.domain.WeekNumbering
 
 /** 布局探针开关：仅在 -Dkylintodo.probe=true 时输出测量结果，用于排查布局问题。 */
 internal val PROBE_ENABLED: Boolean = System.getProperty("kylintodo.probe") == "true"
@@ -65,12 +70,32 @@ private fun dividerColor() = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f
  */
 @Composable
 fun CalendarScreen(viewModel: AppViewModel) {
+    // 周选择弹窗的显隐由本地状态管理 —— 它纯属视图层的瞬时交互，
+    // 不必进入 ViewModel，也就不污染可测试的状态模型。
+    var showWeekPicker by remember { mutableStateOf(false) }
+
+    if (showWeekPicker) {
+        WeekPickerDialog(
+            year = viewModel.currentWeekYear,
+            selectedWeek = WeekNumbering.weekOfYear(viewModel.selectedDate),
+            onSelect = { week ->
+                viewModel.goToWeek(viewModel.currentWeekYear, week)
+                showWeekPicker = false
+            },
+            onDismiss = { showWeekPicker = false },
+        )
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(modifier = Modifier.fillMaxSize().probe("根 Column")) {
-            CalendarToolbar(viewModel = viewModel, modifier = Modifier.probe("工具栏"))
+            CalendarToolbar(
+                viewModel = viewModel,
+                onOpenWeekPicker = { showWeekPicker = true },
+                modifier = Modifier.probe("工具栏"),
+            )
 
             // 水平分隔线：显式高度，避免依赖 Divider 的固有尺寸行为
             Box(
@@ -128,9 +153,13 @@ fun CalendarScreen(viewModel: AppViewModel) {
     }
 }
 
-/** 顶部工具栏：标题、翻页、回今天、视图切换、新增。 */
+/** 顶部工具栏：标题、翻页、回今天、周数、视图切换、新增。 */
 @Composable
-private fun CalendarToolbar(viewModel: AppViewModel, modifier: Modifier = Modifier) {
+private fun CalendarToolbar(
+    viewModel: AppViewModel,
+    onOpenWeekPicker: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -171,6 +200,13 @@ private fun CalendarToolbar(viewModel: AppViewModel, modifier: Modifier = Modifi
         }
 
         Box(modifier = Modifier.weight(1f))
+
+        // 周数指示器：显示当前选中日期所属的 ISO 周，点击可选择周
+        WeekIndicatorButton(
+            label = viewModel.currentWeekLabel,
+            onClick = onOpenWeekPicker,
+            modifier = Modifier.padding(end = 10.dp),
+        )
 
         // 桌面小窗开关（需求第 5 条方案 A）
         OutlinedButton(

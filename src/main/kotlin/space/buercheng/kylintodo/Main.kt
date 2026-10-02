@@ -3,6 +3,7 @@ package space.buercheng.kylintodo
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpSize
@@ -65,6 +66,38 @@ fun main(args: Array<String>) {
                 if (options.widget) vm.changeWidgetVisibility(true)
                 // 调试用：启动即打开添加弹窗，便于截图检查弹窗布局
                 if (options.openAddDialog) vm.openAddTodo()
+            }
+        }
+
+        // 调试用：重放"翻到未来月份后点击某天"的操作序列并打印状态轨迹。
+        // 放在 LaunchedEffect 里执行且只跑一次，避免每次重组都重放。
+        if (options.traceJump) {
+            LaunchedEffect(Unit) {
+                fun log(tag: String) = println(viewModel.debugState(tag))
+                log("初始")
+
+                repeat(3) { i ->
+                    viewModel.goNext()
+                    log("goNext #${i + 1}")
+                }
+
+                // 路径 A：单击格子（CalendarCell 的 onClick）
+                val inPeriod = viewModel.page.days.first { it.inCurrentPeriod }.date
+                log("准备单击(路径A:selectDate) target=$inPeriod")
+                viewModel.selectDate(inPeriod)
+                log("路径A 结果")
+
+                // 路径 B：点击右上角「+」（openAddTodo）
+                viewModel.openAddTodo(inPeriod.plusDays(1))
+                log("路径B 结果(openAddTodo)")
+                viewModel.dismissAddTodo()
+
+                // 路径 C：双击格子（openDayInfo）
+                viewModel.openDayInfo(inPeriod.plusDays(2))
+                log("路径C 结果(openDayInfo)")
+                viewModel.dismissDayInfo()
+
+                log("全部结束")
             }
         }
 
@@ -148,7 +181,7 @@ fun main(args: Array<String>) {
  */
 @Composable
 private fun DesktopWidgetWindow(viewModel: AppViewModel) {
-    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val density = LocalDensity.current.density
 
     val widgetState = rememberWindowState(
         size = DpSize(300.dp, 400.dp),
@@ -210,6 +243,12 @@ private data class LaunchOptions(
     val widget: Boolean = false,
     /** 调试用：启动时即打开添加待办弹窗，便于人工/截图验证弹窗布局 */
     val openAddDialog: Boolean = false,
+    /**
+     * 调试用：启动后自动重放「翻到未来月份再点击某天」的操作序列，
+     * 把每一步状态打到日志。用于定位"切换到 2027 年后点击日期跳回"这类
+     * 只在真机出现的问题。
+     */
+    val traceJump: Boolean = false,
 )
 
 /**
@@ -223,12 +262,14 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
     var seed: Pair<String, LocalDate>? = null
     var widget = false
     var openAddDialog = false
+    var traceJump = false
 
     args.forEach { arg ->
         when {
             // 无值开关
             arg == "--widget" -> widget = true
             arg == "--add" -> openAddDialog = true
+            arg == "--trace-jump" -> traceJump = true
 
             arg.startsWith("--view=") -> {
                 view = when (arg.removePrefix("--view=").lowercase()) {
@@ -257,5 +298,5 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             }
         }
     }
-    return LaunchOptions(view, date, seed, widget, openAddDialog)
+    return LaunchOptions(view, date, seed, widget, openAddDialog, traceJump)
 }
