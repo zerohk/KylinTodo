@@ -16,6 +16,22 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.runtime.SideEffect
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import space.buercheng.kylintodo.AppInfo
 import androidx.compose.ui.window.WindowScope
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
@@ -59,6 +75,59 @@ import java.time.LocalDate
  *  - `--view=day|week|month`：指定启动时的视图模式
  *  - `--date=YYYY-MM-DD`：指定启动时的锚定日期
  */
+
+/**
+ * 启动阶段的状态（需求 7）。
+ *
+ * 三态而非布尔：失败时要能把原因显示给用户，
+ * 否则用户只看到"启动失败"三个字，无从判断该做什么。
+ */
+private sealed interface BootState {
+    data object Loading : BootState
+    data class Ready(val repository: space.buercheng.kylintodo.domain.TodoRepository) : BootState
+    data class Failed(val reason: String) : BootState
+}
+
+/**
+ * 启动画面的内容（需求 7）。
+ *
+ * ## 为什么值得做
+ * 数据库连接与首屏装载需要时间。此前这段时间是**没有窗口的空白** ——
+ * 用户以为启动失败而重复点击图标，这正是"打开多个界面"的体验根源
+ * （互斥锁只是兜底，让用户"不想再点"才是治本）。
+ *
+ * ## 设计说明
+ * - 用**不确定进度**（[CircularProgressIndicator] 默认形态）：无法预知确切
+ *   耗时，伪造百分比会在卡顿时让用户觉得"进度不动了"而更焦虑
+ * - 失败时隐藏进度环、改用错误色：进度环配错误信息会让人误以为还在重试
+ */
+@Composable
+private fun SplashWindowContent(message: String, isError: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier.fillMaxSize().background(scheme.surface),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = AppInfo.DEFAULT_DISPLAY_NAME,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isError) scheme.error else scheme.primary,
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            if (!isError) {
+                CircularProgressIndicator(modifier = Modifier.size(30.dp), strokeWidth = 3.dp)
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+            Text(text = message, fontSize = 12.sp, color = scheme.onSurfaceVariant)
+        }
+    }
+}
+
 /**
  * 把不透明度应用到所属窗口（需求 4）。
  *
@@ -115,8 +184,41 @@ fun main(args: Array<String>) {
     options.initialDate?.let { println("[KylinTodo] 锚定日期: $it") }
 
     application {
+        // ---------- 启动阶段：异步连接数据库（需求 7） ----------
+        //
+        // 此前 `SqliteTodoRepository` 的构造（JDBC 连接 + 建表 + 列迁移）发生在
+        // **窗口出现之前**，用户看到的是几秒空白，以为没启动成功而再点一次图标，
+        // 于是开出第二个进程 —— 这是"多个界面"在体验层面的根源。
+        //
+        // 现在：窗口立刻出现并显示启动画面，数据库连接放到 IO 线程。
+        var bootState by remember { mutableStateOf<BootState>(BootState.Loading) }
+
+        LaunchedEffect(Unit) {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { SqliteTodoRepository(AppPaths.databaseFile()) }
+            }
+            bootState = result.fold(
+                onSuccess = { BootState.Ready(it) },
+                onFailure = { BootState.Failed(it.message ?: "未知错误") },
+            )
+        }
+
+        // 未就绪时只显示启动画面并提前结束本次组合。
+        // 用 as? 而非 when：既拿到智能转换后的非空引用，又保持后续代码缩进不变
+        // （减少 diff，避免大范围改动引入意外）。
+        val booted = bootState as? BootState.Ready
+        if (booted == null) {
+            SplashWindowContent(
+                message = (bootState as? BootState.Failed)
+                    ?.let { "启动失败：${it.reason}" }
+                    ?: "正在启动…",
+                isError = bootState is BootState.Failed,
+            )
+            return@application
+        }
+
         // 数据库在整个应用生命周期内保持打开（需求 F-06：自动保存、自动加载）
-        val repository = remember { SqliteTodoRepository(AppPaths.databaseFile()) }
+        val repository = remember(booted) { booted.repository }
         val viewModel = remember {
             // 端到端验证用：插入种子待办后，正常关闭再启动应能自动加载。
             // 支持多条，便于一次造出覆盖各种优先级与标签的样例数据。
