@@ -93,6 +93,34 @@ class AppViewModel(
      */
     val instanceId: Int = counter++
 
+    /**
+     * 调试用操作日志。由界面在开启调试栏时注入。
+     *
+     * 记录每次状态变更的**操作名与前后值**，用于定位"锚点被意料之外的
+     * 路径改写"这类问题 —— 只看状态快照无法区分是哪个操作造成的。
+     */
+    var actionLog: ActionLog? = null
+
+    /** 执行一次状态变更并记录到操作日志。 */
+    private fun tracked(name: String, result: String = "", block: () -> Unit) {
+        val log = actionLog
+        if (log == null) {
+            block()
+            return
+        }
+        val a0 = anchorDate
+        val s0 = selectedDate
+        block()
+        log.record(
+            action = name,
+            anchorBefore = a0,
+            anchorAfter = anchorDate,
+            selectedBefore = s0,
+            selectedAfter = selectedDate,
+            result = result,
+        )
+    }
+
     private companion object {
         /** 仅用于诊断：记录创建过多少个 AppViewModel 实例。 */
         var counter = 0
@@ -156,37 +184,45 @@ class AppViewModel(
      */
     fun changeViewMode(mode: CalendarViewMode) {
         if (viewMode == mode) return
-        viewMode = mode
-        anchorDate = selectedDate
-        refresh()
+        tracked("changeViewMode($mode)") {
+            viewMode = mode
+            anchorDate = selectedDate
+            refresh()
+        }
     }
 
     /** 选中某一天（点击格子）。 */
     fun selectDate(date: LocalDate) {
-        selectedDate = date
-        // 月视图下选中相邻月份溢出的日期时，把锚点跟过去，
-        // 否则高亮会落在当前页之外，用户看不到反馈。
-        if (viewMode == CalendarViewMode.MONTH) {
-            if (YearMonth.from(date) != YearMonth.from(anchorDate)) anchorDate = date
-        } else {
-            anchorDate = date
+        tracked("selectDate($date)", result = "viewMode=$viewMode") {
+            selectedDate = date
+            // 月视图下选中相邻月份溢出的日期时，把锚点跟过去，
+            // 否则高亮会落在当前页之外，用户看不到反馈。
+            if (viewMode == CalendarViewMode.MONTH) {
+                if (YearMonth.from(date) != YearMonth.from(anchorDate)) anchorDate = date
+            } else {
+                anchorDate = date
+            }
+            refresh()
         }
-        refresh()
     }
 
     /** 上一页：月视图减一月，周视图减一周，日视图减一天。 */
-    fun goPrevious() = navigate { when (viewMode) {
-        CalendarViewMode.MONTH -> it.minusMonths(1)
-        CalendarViewMode.WEEK -> it.minusWeeks(1)
-        CalendarViewMode.DAY -> it.minusDays(1)
-    } }
+    fun goPrevious() = tracked("goPrevious") {
+        navigate { when (viewMode) {
+            CalendarViewMode.MONTH -> it.minusMonths(1)
+            CalendarViewMode.WEEK -> it.minusWeeks(1)
+            CalendarViewMode.DAY -> it.minusDays(1)
+        } }
+    }
 
     /** 下一页。 */
-    fun goNext() = navigate { when (viewMode) {
-        CalendarViewMode.MONTH -> it.plusMonths(1)
-        CalendarViewMode.WEEK -> it.plusWeeks(1)
-        CalendarViewMode.DAY -> it.plusDays(1)
-    } }
+    fun goNext() = tracked("goNext") {
+        navigate { when (viewMode) {
+            CalendarViewMode.MONTH -> it.plusMonths(1)
+            CalendarViewMode.WEEK -> it.plusWeeks(1)
+            CalendarViewMode.DAY -> it.plusDays(1)
+        } }
+    }
 
     /**
      * 翻页。
@@ -212,7 +248,7 @@ class AppViewModel(
     }
 
     /** 回到今天。 */
-    fun goToday() {
+    fun goToday() = tracked("goToday") {
         anchorDate = today
         selectedDate = today
         refresh()
@@ -239,7 +275,7 @@ class AppViewModel(
      *
      * 跳转后锚点与选中日都落在该周的周一，保证日历页与侧栏列表一致。
      */
-    fun goToWeek(year: Int, week: Int) {
+    fun goToWeek(year: Int, week: Int) = tracked("goToWeek($year, $week)") {
         val monday = WeekNumbering.mondayOfWeek(year, week)
         anchorDate = monday
         selectedDate = monday
@@ -337,7 +373,7 @@ class AppViewModel(
      * 对应需求变更：双击日历中的某一天 → 弹出窗口显示该日已添加的待办
      * （无则为空），并可在窗口内继续添加。
      */
-    fun openDayInfo(date: LocalDate) {
+    fun openDayInfo(date: LocalDate) = tracked("openDayInfo($date)") {
         selectedDate = date
         dayInfoDate = date
         // refresh() 内部会在 dayInfoDate 非空时同步刷新弹窗数据，

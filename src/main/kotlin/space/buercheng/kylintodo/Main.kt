@@ -34,6 +34,9 @@ import space.buercheng.kylintodo.ui.DayInfoDialog
 import space.buercheng.kylintodo.ui.DesktopWidgetScreen
 import space.buercheng.kylintodo.ui.rememberDebugOverlayState
 import space.buercheng.kylintodo.ui.handleDebugShortcut
+import androidx.compose.runtime.CompositionLocalProvider
+import space.buercheng.kylintodo.ui.ActionLog
+import space.buercheng.kylintodo.ui.LocalActionLog
 import space.buercheng.kylintodo.ui.DebugStatusBar
 import space.buercheng.kylintodo.ui.KylinTodoTheme
 import space.buercheng.kylintodo.ui.configureFontRendering
@@ -138,6 +141,12 @@ fun main(args: Array<String>) {
         // 用 remember 持有，保证整个应用生命周期内是同一份状态。
         val settings = remember { SettingsController(SettingsStore.load()) }
 
+        // 调试用操作日志。仅在打开调试栏时注入 ViewModel，避免生产开销。
+        val actionLog = remember { ActionLog() }
+        LaunchedEffect(debugState.visible) {
+            viewModel.actionLog = if (debugState.visible) actionLog else null
+        }
+
         Window(
             onCloseRequest = ::exitApplication,
             title = settings.appName,
@@ -173,9 +182,11 @@ fun main(args: Array<String>) {
                 // 直接并列两个兄弟节点会互相重叠而非上下排列。
                 Column(modifier = Modifier.fillMaxSize()) {
                     // 调试状态栏：把 anchor / selected / 网格范围等关键状态平铺显示，
-                    // 供用户复现问题时截图 —— 因为 Compose 无法用合成输入自动化点击。
+                    // 并记录操作序列，供用户复现问题时截图。
                     if (debugState.visible) {
-                        DebugStatusBar(viewModel = viewModel)
+                        CompositionLocalProvider(LocalActionLog provides actionLog) {
+                            DebugStatusBar(viewModel = viewModel)
+                        }
                     }
 
                     Box(modifier = Modifier.weight(1f)) {
