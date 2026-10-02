@@ -178,17 +178,25 @@ private fun CalendarToolbar(
             modifier = Modifier.padding(start = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = viewModel::goPrevious) {
+            IconButton(
+                onClick = viewModel::goPrevious,
+                modifier = Modifier.recordBounds("btn:prev"),
+            ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一页")
             }
             Text(
                 text = viewModel.pageTitle,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 8.dp),
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .recordBounds("title"),
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            IconButton(onClick = viewModel::goNext) {
+            IconButton(
+                onClick = viewModel::goNext,
+                modifier = Modifier.recordBounds("btn:next"),
+            ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一页")
             }
             OutlinedButton(

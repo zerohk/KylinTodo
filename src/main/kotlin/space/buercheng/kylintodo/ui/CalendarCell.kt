@@ -78,7 +78,12 @@ fun CalendarCell(
             .singleOrDoubleClick(
                 onClick = { onSelect(day.date) },
                 onDoubleClick = { onOpenDayInfo(day.date) },
-            ),
+            )
+            // 调试探针（仅 -Dkylintodo.probe=true 生效）：
+            // 记录该格子的实际窗口坐标与点击命中，用于排查"点到的格子
+            // 与预期不一致"这类只在 GUI 层出现的问题。
+            .recordCellBounds(day.date)
+            .tapProbe("${day.date}"),
         color = when {
             isToday -> scheme.primaryContainer.copy(alpha = 0.45f)
             else -> scheme.surface

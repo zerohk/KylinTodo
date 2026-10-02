@@ -12,6 +12,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import kotlinx.coroutines.delay
 import space.buercheng.kylintodo.data.AppPaths
 import space.buercheng.kylintodo.data.SqliteTodoRepository
 import space.buercheng.kylintodo.domain.CalendarViewMode
@@ -19,6 +20,7 @@ import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.ui.AddTodoDialog
 import space.buercheng.kylintodo.ui.AppViewModel
 import space.buercheng.kylintodo.ui.CalendarScreen
+import space.buercheng.kylintodo.ui.ClickProbeSupport
 import space.buercheng.kylintodo.ui.DayInfoDialog
 import space.buercheng.kylintodo.ui.DesktopWidgetScreen
 import space.buercheng.kylintodo.ui.KylinTodoTheme
@@ -128,6 +130,12 @@ fun main(args: Array<String>) {
             KylinTodoTheme {
                 CalendarScreen(viewModel = viewModel)
 
+                // 调试用：在应用自身进程内驱动真实鼠标点击，自动重放用户的
+                // 操作序列并核对状态。仅在 --simulate-clicks 时启用。
+                if (options.simulateClicks) {
+                    JumpSimulator(viewModel = viewModel, javaWindow = window)
+                }
+
                 // 日期详情弹窗：双击日历中的某一天弹出，
                 // 显示该日已添加的待办，并可继续添加（双击弹窗或点「+」）
                 viewModel.dayInfoDate?.let { infoDate ->
@@ -162,6 +170,110 @@ fun main(args: Array<String>) {
         if (viewModel.widgetVisible) {
             DesktopWidgetWindow(viewModel = viewModel)
         }
+    }
+}
+
+/**
+ * 调试用：在**应用自身的 JVM 内**用 AWT Robot 驱动真实鼠标点击，自动重放
+ * 「翻页到未来月份 → 逐格点击」的操作序列。
+ *
+ * ## 为什么要在应用内发点击
+ * 从独立进程（PowerShell / jshell）发送的合成点击会因焦点竞争而丢失 ——
+ * 实测 .NET mouseEvent 与外部 Robot 都无法可靠命中 Compose 窗口。
+ * 在应用内创建 Robot 时窗口本身就是前台，可稳定命中。
+ *
+ * ## 为什么用探针记录的坐标
+ * 探针通过 `onGloballyPositioned` 记录每个构件与格子的**实际**窗口坐标，
+ * 因此点击的不是"算出来的"位置，而是"界面真实画出来的"位置。这样若仍
+ * 出现异常，就排除了坐标错位这一类原因。
+ */
+@Composable
+private fun JumpSimulator(viewModel: AppViewModel, javaWindow: java.awt.Window?) {
+    LaunchedEffect(Unit) {
+        fun log(msg: String) = println("[SIM] $msg")
+
+        // 等界面完全渲染，保证探针已记录坐标
+        delay(3500)
+
+        // 关键：必须让窗口成为前台并获得焦点，否则 Robot 的合成点击会被
+        // 系统丢弃 —— 表现为"点击完全无效果"，而不是点错位置。
+        // 上一次实测中三次翻页按钮点击均未生效，正是这个原因。
+        runCatching {
+            javaWindow?.isAlwaysOnTop = true
+            javaWindow?.toFront()
+            javaWindow?.requestFocus()
+        }
+        delay(1200)
+        log(
+            "开始，窗口屏幕位置=${javaWindow?.locationOnScreen} " +
+                "可见=${javaWindow?.isVisible} 激活=${javaWindow?.isActive}",
+        )
+
+        val robot = runCatching { java.awt.Robot() }.getOrNull()
+        if (robot == null) {
+            log("无法创建 Robot，终止")
+            return@LaunchedEffect
+        }
+        robot.autoDelay = 80
+
+        fun clickKey(key: String): Boolean {
+            val b = ClickProbeSupport.boundsOf(key)
+            if (b == null) {
+                log("找不到构件 $key 的坐标")
+                return false
+            }
+            val origin = javaWindow?.locationOnScreen ?: java.awt.Point(0, 0)
+            val localX = (b[0] + b[2]) / 2f
+            val localY = (b[1] + b[3]) / 2f
+            val cx = (origin.x + localX).toInt()
+            val cy = (origin.y + localY).toInt()
+            log("点击 $key 窗口内(${localX.toInt()},${localY.toInt()}) 屏幕($cx,$cy)")
+
+            ClickProbeSupport.lastClickedTag = null
+            robot.mouseMove(cx, cy)
+            robot.delay(250)
+            robot.mousePress(java.awt.event.InputEvent.BUTTON1_DOWN_MASK)
+            robot.delay(90)
+            robot.mouseRelease(java.awt.event.InputEvent.BUTTON1_DOWN_MASK)
+            robot.delay(600)
+
+            // 用探针的命中记录判断点击是否真的送达应用：
+            // 若为 null 说明事件根本没到 Compose，属于输入投递问题而非应用 bug。
+            val hit = ClickProbeSupport.lastClickedTag
+            log("    点击送达=${hit ?: "否（事件未到达应用）"}")
+            return true
+        }
+
+        // 先验证输入投递是否可用 —— 若鼠标点击不生效，后续结果无意义
+        log("窗口激活状态=${javaWindow?.isActive}，开始测试输入投递")
+
+        // 1. 向后翻 3 次（起点由 --date 指定，建议 2026-10-01）
+        repeat(3) { i ->
+            clickKey("btn:next")
+            log("翻页 #${i + 1} 后 anchor=${viewModel.anchorDate} 标题='${viewModel.pageTitle}'")
+        }
+
+        val expectedMonth = java.time.YearMonth.from(viewModel.anchorDate)
+        log("目标月份 = $expectedMonth")
+
+        // 2. 逐格点击"当月内"的日期，每次核对锚点月份与选中日
+        val targets = viewModel.page.days.filter { it.inCurrentPeriod }.map { it.date }
+        log("将逐格点击 ${targets.size} 个当月日期")
+
+        var failures = 0
+        targets.forEach { date ->
+            clickKey("cell:${date.monthValue}/${date.dayOfMonth}")
+            val after = java.time.YearMonth.from(viewModel.anchorDate)
+            val selected = viewModel.selectedDate
+            if (after != expectedMonth || selected != date) {
+                failures++
+                log("!! 异常：点击 $date 后 anchor=${viewModel.anchorDate} selected=$selected（期望 $expectedMonth / $date）")
+            } else {
+                log("ok 点击 $date -> anchor=$after selected=$selected")
+            }
+        }
+
+        log("完成：共点击 ${targets.size} 次，异常 $failures 次")
     }
 }
 
@@ -249,6 +361,12 @@ private data class LaunchOptions(
      * 只在真机出现的问题。
      */
     val traceJump: Boolean = false,
+    /**
+     * 调试用：在应用自身进程内用 AWT Robot 驱动真实鼠标，自动重放
+     * 「翻页到未来月份 → 逐格点击」并核对每次点击后的锚点月份。
+     * 需与 -Pprobe 一起使用（探针提供构件的真实坐标）。
+     */
+    val simulateClicks: Boolean = false,
 )
 
 /**
@@ -263,6 +381,7 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
     var widget = false
     var openAddDialog = false
     var traceJump = false
+    var simulateClicks = false
 
     args.forEach { arg ->
         when {
@@ -270,6 +389,7 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             arg == "--widget" -> widget = true
             arg == "--add" -> openAddDialog = true
             arg == "--trace-jump" -> traceJump = true
+            arg == "--simulate-clicks" -> simulateClicks = true
 
             arg.startsWith("--view=") -> {
                 view = when (arg.removePrefix("--view=").lowercase()) {
@@ -298,5 +418,5 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             }
         }
     }
-    return LaunchOptions(view, date, seed, widget, openAddDialog, traceJump)
+    return LaunchOptions(view, date, seed, widget, openAddDialog, traceJump, simulateClicks)
 }
