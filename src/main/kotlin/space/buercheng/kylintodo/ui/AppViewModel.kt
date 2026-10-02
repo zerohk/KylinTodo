@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import space.buercheng.kylintodo.data.TodoExporter
+import space.buercheng.kylintodo.domain.DayTodoStats
 import space.buercheng.kylintodo.domain.CalendarDay
 import space.buercheng.kylintodo.domain.CalendarGridBuilder
 import space.buercheng.kylintodo.domain.CalendarPage
@@ -433,14 +434,18 @@ class AppViewModel(
         // 1. 先确定本页日期范围（不依赖待办数据）
         val (rangeStart, rangeEnd) = computeGridRange()
 
-        // 2. 一次性取回整页的待办数量
-        val counts: Map<LocalDate, Int> =
+        // 2. 一次性取回整页的待办统计（数量 + 最高优先级）
+        val stats: Map<LocalDate, DayTodoStats> =
             if (rangeStart.isAfter(rangeEnd)) emptyMap()
-            else repository.countByDateRange(rangeStart, rangeEnd)
+            else repository.statsByDateRange(rangeStart, rangeEnd)
 
-        // 3. 用缓存的 counts 构造格子
+        // 3. 用缓存的 stats 构造格子
         val enricher: (LocalDate) -> DayEnrichment = { date ->
-            lunarService.describe(date).copy(todoCount = counts[date] ?: 0)
+            val s = stats[date]
+            lunarService.describe(date).copy(
+                todoCount = s?.count ?: 0,
+                maxPriorityLevel = s?.maxPriorityLevel ?: 0,
+            )
         }
 
         page = when (viewMode) {

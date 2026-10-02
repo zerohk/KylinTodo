@@ -15,6 +15,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import space.buercheng.kylintodo.domain.TodoPriority
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,7 +73,7 @@ fun TodoList(
     }
 }
 
-/** 单条待办：复选框 + 文本（完成后加删除线）+ 删除按钮。 */
+/** 单条待办：优先级色条 + 复选框 + 文本（含标签）+ 删除按钮。 */
 @Composable
 private fun TodoRow(
     item: TodoItem,
@@ -83,26 +88,50 @@ private fun TodoRow(
             .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // 优先级色条：左侧 3dp 竖条。
+        // 用颜色而非文字表达优先级 —— 列表里逐条写「高/中/低」会很吵，
+        // 色条扫视时一眼可辨，也不占用横向空间。
+        // 无优先级时留同宽空位，保证所有行文字左边界对齐。
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(26.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(
+                    if (item.priority == TodoPriority.NONE) {
+                        Color.Transparent
+                    } else {
+                        priorityColor(item.priority)
+                    }
+                ),
+        )
         Checkbox(
             checked = item.isCompleted,
             onCheckedChange = { onToggle() },
         )
-        Text(
-            text = item.text,
+        Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 4.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            // 需求 F-04 要求完成状态有视觉反馈，删除线是最直观的表达
-            textDecoration = if (item.isCompleted) TextDecoration.LineThrough else null,
-            color = if (item.isCompleted) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-        )
+        ) {
+            Text(
+                text = item.text,
+                style = MaterialTheme.typography.bodyMedium,
+                // 需求 F-04 要求完成状态有视觉反馈，删除线是最直观的表达
+                textDecoration = if (item.isCompleted) TextDecoration.LineThrough else null,
+                color = if (item.isCompleted) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // 标签：仅非空时占位，避免空行把列表撑高
+            if (item.tags.isNotEmpty()) {
+                TagRow(item.tags)
+            }
+        }
         IconButton(
             onClick = onDelete,
             modifier = Modifier.size(32.dp),
@@ -113,6 +142,33 @@ private fun TodoRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
             )
+        }
+    }
+}
+
+/** 待办行下方的标签小片。标签数量上限由领域模型保证（最多 6 个）。 */
+@Composable
+private fun TagRow(tags: Set<String>) {
+    Row(
+        modifier = Modifier.padding(top = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // 按固定顺序展示：Set 的迭代顺序不稳定，排序后避免每次重组位置乱跳
+        tags.sorted().forEach { tag ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            ) {
+                Text(
+                    text = tag,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

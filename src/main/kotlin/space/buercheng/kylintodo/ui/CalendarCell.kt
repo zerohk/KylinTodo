@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import space.buercheng.kylintodo.domain.CalendarDay
+import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.DayType
 import java.time.LocalDate
 
@@ -113,6 +114,7 @@ fun CalendarCell(
                 if (showTodoCount && day.todoCount > 0) {
                     TodoCountBadge(
                         count = day.todoCount,
+                        maxPriorityLevel = day.maxPriorityLevel,
                         modifier = Modifier.align(Alignment.BottomStart),
                     )
                 }
@@ -277,13 +279,30 @@ private fun SubLabel(
 @Composable
 private fun TodoCountBadge(
     count: Int,
+    maxPriorityLevel: Int,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    // 优先级由角标的背景色表达：高=红、中=琥珀、低=蓝、无=中性色。
+    // 格子空间极小，只够传达一个信号，因此用当天最高优先级而非逐条着色。
+    val priority = TodoPriority.fromLevel(maxPriorityLevel)
+    val badgeColor = when (priority) {
+        TodoPriority.HIGH -> priorityColor(TodoPriority.HIGH).copy(alpha = 0.22f)
+        TodoPriority.MEDIUM -> priorityColor(TodoPriority.MEDIUM).copy(alpha = 0.22f)
+        TodoPriority.LOW -> priorityColor(TodoPriority.LOW).copy(alpha = 0.22f)
+        TodoPriority.NONE -> scheme.secondaryContainer.copy(alpha = 0.7f)
+    }
+    val contentColor = when (priority) {
+        TodoPriority.HIGH -> priorityColor(TodoPriority.HIGH)
+        TodoPriority.MEDIUM -> priorityColor(TodoPriority.MEDIUM)
+        TodoPriority.LOW -> priorityColor(TodoPriority.LOW)
+        TodoPriority.NONE -> scheme.onSecondaryContainer
+    }
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(scheme.secondaryContainer.copy(alpha = 0.7f))
+            .background(badgeColor)
             .padding(horizontal = 3.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(1.dp),
@@ -291,13 +310,13 @@ private fun TodoCountBadge(
         Icon(
             imageVector = Icons.Filled.Check,
             contentDescription = null,
-            tint = scheme.onSecondaryContainer,
+            tint = contentColor,
             modifier = Modifier.size(9.dp),
         )
         Text(
             text = count.toString(),
             fontSize = 9.sp,
-            color = scheme.onSecondaryContainer,
+            color = contentColor,
         )
     }
 }

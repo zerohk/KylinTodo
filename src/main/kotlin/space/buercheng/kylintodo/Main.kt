@@ -19,6 +19,7 @@ import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import space.buercheng.kylintodo.data.AppPaths
 import space.buercheng.kylintodo.data.SqliteTodoRepository
+import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.CalendarViewMode
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.ui.AddTodoDialog
@@ -75,9 +76,15 @@ fun main(args: Array<String>) {
         // 数据库在整个应用生命周期内保持打开（需求 F-06：自动保存、自动加载）
         val repository = remember { SqliteTodoRepository(AppPaths.databaseFile()) }
         val viewModel = remember {
-            // 端到端验证用：插入一条种子待办后，正常关闭再启动应能自动加载
-            options.seedTodo?.let { (text, date) ->
-                TodoItem.createOrNull(text, date)?.let { repository.insert(it) }
+            // 端到端验证用：插入种子待办后，正常关闭再启动应能自动加载。
+            // 支持多条，便于一次造出覆盖各种优先级与标签的样例数据。
+            options.seedTodos.forEach { seed ->
+                TodoItem.createOrNull(
+                    seed.text,
+                    seed.date,
+                    priority = seed.priority,
+                    tags = seed.tags,
+                )?.let { repository.insert(it) }
             }
             AppViewModel(
                 repository = repository,
@@ -413,12 +420,27 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsContr
     }
 }
 
+/**
+ * 命令行种子待办。
+ *
+ * 独立数据类而非元组：现在要带优先级与标签，四元组用起来极易把顺序写错。
+ */
+private data class SeedTodo(
+    val text: String,
+    val date: LocalDate,
+    val priority: TodoPriority,
+    val tags: Set<String>,
+)
+
 /** 命令行选项。 */
 private data class LaunchOptions(
     val initialView: CalendarViewMode? = null,
     val initialDate: LocalDate? = null,
-    /** 调试用：启动时插入一条待办，便于验证持久化与自动加载 */
-    val seedTodo: Pair<String, LocalDate>? = null,
+    /**
+     * 调试用：启动时插入的待办，便于验证持久化、自动加载，
+     * 以及优先级与标签在界面上的呈现。
+     */
+    val seedTodos: List<SeedTodo> = emptyList(),
     /** 启动时即打开桌面小窗 */
     val widget: Boolean = false,
     /** 调试用：启动时即打开添加待办弹窗，便于人工/截图验证弹窗布局 */
@@ -449,7 +471,7 @@ private data class LaunchOptions(
 private fun parseArgs(args: Array<String>): LaunchOptions {
     var view: CalendarViewMode? = null
     var date: LocalDate? = null
-    var seed: Pair<String, LocalDate>? = null
+    val seeds = mutableListOf<SeedTodo>()
     var widget = false
     var openAddDialog = false
     var traceJump = false
@@ -480,17 +502,29 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
                 date = runCatching { LocalDate.parse(arg.removePrefix("--date=")) }.getOrNull()
             }
 
-            // --seed=文本@YYYY-MM-DD   （日期可省略，默认锚定日期）
+            // --seed=文本@YYYY-MM-DD          （日期可省略，默认锚定日期）
+            // --seed=文本@YYYY-MM-DD@H        （再加优先级 H/M/L/N）
+            // --seed=文本@YYYY-MM-DD@H@工作,紧急（再加逗号分隔的标签）
+            //
+            // 支持优先级与标签是为了能做端到端视觉验证：只有真正把四种优先级
+            // 和带标签的待办插进库里，才能确认格子与列表的着色/标签渲染正确。
             arg.startsWith("--seed=") -> {
-                val body = arg.removePrefix("--seed=")
-                val at = body.lastIndexOf('@')
-                val text = if (at >= 0) body.substring(0, at) else body
-                val d = if (at >= 0) {
-                    runCatching { LocalDate.parse(body.substring(at + 1)) }.getOrNull()
-                } else {
-                    null
-                }
-                seed = text to (d ?: date ?: LocalDate.now())
+                val parts = arg.removePrefix("--seed=").split('@')
+                val text = parts.getOrNull(0).orEmpty()
+                val d = parts.getOrNull(1)
+                    ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                val p = parts.getOrNull(2)
+                    ?.let { token ->
+                        TodoPriority.entries.firstOrNull {
+                            it.name.startsWith(token.trim().uppercase())
+                        }
+                    }
+                    ?: TodoPriority.NONE
+                val tags = parts.getOrNull(3)
+                    ?.let { TodoItem.normalizeTags(listOf(it)) }
+                    ?: emptySet()
+
+                seeds += SeedTodo(text, d ?: date ?: LocalDate.now(), p, tags)
             }
         }
     }
@@ -502,7 +536,7 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
     return LaunchOptions(
         initialView = view,
         initialDate = date,
-        seedTodo = seed,
+        seedTodos = seeds,
         widget = widget,
         openAddDialog = openAddDialog,
         traceJump = traceJump,

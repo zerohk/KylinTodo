@@ -1,5 +1,6 @@
 package space.buercheng.kylintodo.data
 
+import space.buercheng.kylintodo.domain.DayTodoStats
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.domain.TodoPriority
 import space.buercheng.kylintodo.domain.TodoRepository
@@ -141,6 +142,41 @@ class SqliteTodoRepository(private val dbPath: Path) : TodoRepository {
                 }
             }
         }
+
+    override fun statsByDateRange(
+        start: LocalDate,
+        end: LocalDate,
+    ): Map<LocalDate, DayTodoStats> = synchronized(lock) {
+        // 一次聚合查询同时拿到数量与最高优先级。
+        // 只统计未完成的待办：勾掉之后格子上的高优先级标记必须随之消失，
+        // 否则用户会误以为还有未完成的重要事项。
+        connection.prepareStatement(
+            """
+            SELECT date,
+                   COUNT(*) AS c,
+                   MAX(priority) AS p
+            FROM todo
+            WHERE date BETWEEN ? AND ? AND is_completed = 0
+            GROUP BY date
+            """.trimIndent()
+        ).use { ps ->
+            ps.setString(1, start.toString())
+            ps.setString(2, end.toString())
+            ps.executeQuery().use { rs ->
+                buildMap {
+                    while (rs.next()) {
+                        put(
+                            LocalDate.parse(rs.getString("date")),
+                            DayTodoStats(
+                                count = rs.getInt("c"),
+                                maxPriorityLevel = rs.getInt("p"),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     override fun insert(item: TodoItem): Unit = synchronized(lock) {
         connection.prepareStatement(

@@ -64,6 +64,8 @@ data class CalendarDay(
     val holidayName: String? = null,
     /** 该日期已存在的待办数量，用于在格子上显示计数 */
     val todoCount: Int = 0,
+    /** 当天待办的最高优先级（0 = 无），用于给计数角标着色 */
+    val maxPriorityLevel: Int = 0,
 ) {
     /** 右下角最终显示内容：节气优先于农历。 */
     val subLabel: String get() = solarTerm ?: lunarText
@@ -195,6 +197,7 @@ object CalendarGridBuilder {
             dayType = info.dayType,
             holidayName = info.holidayName,
             todoCount = info.todoCount,
+            maxPriorityLevel = info.maxPriorityLevel,
         )
     }
 }
@@ -211,4 +214,11 @@ data class DayEnrichment(
     val dayType: DayType = DayType.NORMAL,
     val holidayName: String? = null,
     val todoCount: Int = 0,
+    /**
+     * 当天待办中的**最高优先级**（0 表示无待办或全部为「无优先级」）。
+     *
+     * 用最高优先级而非逐条颜色：月视图格子空间极小，只够表达一个信号，
+     * 「这一天有重要事项」是用户扫视月历时最需要的信息。
+     */
+    val maxPriorityLevel: Int = 0,
 )

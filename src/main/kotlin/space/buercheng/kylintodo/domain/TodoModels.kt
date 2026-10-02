@@ -114,6 +114,17 @@ data class TodoItem(
 }
 
 /**
+ * 单日的待办聚合统计，供日历格子显示。
+ *
+ * @param count 未完成待办数量
+ * @param maxPriorityLevel 其中最高优先级的等级值（0 表示无或全为「无优先级」）
+ */
+data class DayTodoStats(
+    val count: Int,
+    val maxPriorityLevel: Int,
+)
+
+/**
  * 待办数据仓库。
  *
  * 抽象为接口以便在 UI 层注入不同实现（SQLite 实现 / 测试用内存实现）。
@@ -135,6 +146,17 @@ interface TodoRepository {
 
     /** 读取指定日期区间内的待办数量统计，键为日期。 */
     fun countByDateRange(start: LocalDate, end: LocalDate): Map<LocalDate, Int>
+
+    /**
+     * 读取指定日期区间内每天的「未完成待办数量」与「最高优先级」。
+     *
+     * 与 [countByDateRange] 分开提供而不是替换：格子上要同时显示数量与
+     * 优先级色，一次聚合查询就能拿到两者，避免为优先级再查一遍。
+     *
+     * 只统计**未完成**待办 —— 已完成的事项不应再提醒用户，
+     * 否则勾掉之后格子上的高优先级标记还留着，会误导。
+     */
+    fun statsByDateRange(start: LocalDate, end: LocalDate): Map<LocalDate, DayTodoStats>
 
     /** 新增一条待办。 */
     fun insert(item: TodoItem)

@@ -1,5 +1,6 @@
 package space.buercheng.kylintodo.testing
 
+import space.buercheng.kylintodo.domain.DayTodoStats
 import space.buercheng.kylintodo.domain.TodoItem
 import space.buercheng.kylintodo.domain.TodoRepository
 import java.time.LocalDate
@@ -35,6 +36,26 @@ class InMemoryTodoRepository : TodoRepository {
         items.filter { !it.date.isBefore(start) && !it.date.isAfter(end) }
             .groupingBy { it.date }
             .eachCount()
+
+    /**
+     * 与 SQLite 实现保持同一语义：只统计**未完成**待办，
+     * 并给出其中最高优先级等级。两者行为必须一致，
+     * 否则测试通过而真机表现不同。
+     */
+    override fun statsByDateRange(
+        start: LocalDate,
+        end: LocalDate,
+    ): Map<LocalDate, DayTodoStats> =
+        items.filter {
+            !it.date.isBefore(start) && !it.date.isAfter(end) && !it.isCompleted
+        }
+            .groupBy { it.date }
+            .mapValues { (_, list) ->
+                DayTodoStats(
+                    count = list.size,
+                    maxPriorityLevel = list.maxOf { it.priority.level },
+                )
+            }
 
     override fun insert(item: TodoItem) {
         items.add(item)
