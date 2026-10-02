@@ -1,5 +1,6 @@
 package space.buercheng.kylintodo.data
 
+import space.buercheng.kylintodo.AppInfo
 import java.util.prefs.Preferences
 
 /**
@@ -42,6 +43,7 @@ object SettingsStore {
     private const val KEY_THEME = "themeMode"
     private const val KEY_FONT_SCALE = "fontScale"
     private const val KEY_WIDGET_VISIBLE = "widgetVisibleOnStart"
+    private const val KEY_APP_NAME = "appDisplayName"
 
     private val prefs: Preferences? by lazy {
         runCatching { Preferences.userRoot().node(NODE) }.getOrNull()
@@ -49,6 +51,9 @@ object SettingsStore {
 
     /** 读取当前偏好；任何异常都回落到默认值。 */
     fun load(): AppSettings = AppSettings(
+        appName = AppInfo.normalizeName(
+            runCatching { prefs?.get(KEY_APP_NAME, null) }.getOrNull(),
+        ),
         themeMode = runCatching {
             ThemeMode.valueOf(prefs?.get(KEY_THEME, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name)
         }.getOrDefault(ThemeMode.SYSTEM),
@@ -63,6 +68,7 @@ object SettingsStore {
     /** 保存偏好。失败时静默忽略 —— 界面仍按当前会话的设置工作。 */
     fun save(settings: AppSettings) {
         runCatching {
+            prefs?.put(KEY_APP_NAME, settings.appName)
             prefs?.put(KEY_THEME, settings.themeMode.name)
             prefs?.put(KEY_FONT_SCALE, settings.fontScale.name)
             prefs?.putBoolean(KEY_WIDGET_VISIBLE, settings.widgetVisibleOnStart)
@@ -76,6 +82,8 @@ object SettingsStore {
 
 /** 应用偏好数据。 */
 data class AppSettings(
+    /** 界面与窗口显示的名称，用户可自定义 */
+    val appName: String = AppInfo.DEFAULT_DISPLAY_NAME,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontScale: FontScale = FontScale.NORMAL,
     /** 启动时是否自动打开桌面小窗 */

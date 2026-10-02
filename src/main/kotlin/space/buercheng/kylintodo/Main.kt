@@ -42,15 +42,6 @@ import space.buercheng.kylintodo.ui.selectedChineseFontName
 import java.time.LocalDate
 
 /**
- * 应用的对外显示名称。
- *
- * 集中在一处，避免窗口标题、小窗标题、打包配置各写一遍导致不一致。
- * 注意：**包名与 Linux 包名仍然保留 `kylintodo`**，只改显示名称 ——
- * 改包名会被系统视为另一个应用，已安装用户无法平滑升级。
- */
-const val APP_DISPLAY_NAME = "大智桌面日历"
-
-/**
  * 应用入口。
  *
  * 注意 `mainClass` 在 `build.gradle.kts` 中配置为
@@ -149,7 +140,7 @@ fun main(args: Array<String>) {
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = APP_DISPLAY_NAME,
+            title = settings.appName,
             state = windowState,
             icon = AppIcon.painter,
             // 允许用鼠标拖拽边框缩放。Compose Desktop 默认即为 true，
@@ -188,7 +179,7 @@ fun main(args: Array<String>) {
                     }
 
                     Box(modifier = Modifier.weight(1f)) {
-                        CalendarScreen(viewModel = viewModel)
+                        CalendarScreen(viewModel = viewModel, appName = settings.appName)
                     }
                 }
 
@@ -374,7 +365,7 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsContr
     Window(
         onCloseRequest = { viewModel.changeWidgetVisibility(false) },
         state = widgetState,
-        title = "$APP_DISPLAY_NAME 小窗",
+        title = "${settings.appName} 小窗",
         icon = AppIcon.painter,
         // 无系统边框：小窗自带拖动把手与关闭按钮
         undecorated = true,

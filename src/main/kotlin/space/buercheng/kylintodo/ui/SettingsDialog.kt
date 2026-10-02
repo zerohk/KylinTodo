@@ -24,6 +24,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -56,23 +60,34 @@ import space.buercheng.kylintodo.data.TodoExporter
  */
 class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
 
+    /** 界面与窗口显示的名称，用户可自定义。 */
+    var appName by mutableStateOf(initial.appName)
+
     var themeMode by mutableStateOf(initial.themeMode)
 
     var fontScale by mutableStateOf(initial.fontScale)
 
     var widgetVisibleOnStart by mutableStateOf(initial.widgetVisibleOnStart)
 
-    /** 修改后立即持久化，避免用户忘记保存而丢失设置。 */
+    /**
+     * 修改后立即持久化，避免用户忘记保存而丢失设置。
+     *
+     * 名称会先经 [AppInfo.normalizeName] 规范化：
+     * 空白输入回落默认值，超长输入截断 —— 否则标题栏可能变空白或被撑破。
+     */
     fun update(
+        name: String = appName,
         theme: ThemeMode = themeMode,
         scale: FontScale = fontScale,
         widgetOnStart: Boolean = widgetVisibleOnStart,
     ) {
+        appName = AppInfo.normalizeName(name)
         themeMode = theme
         fontScale = scale
         widgetVisibleOnStart = widgetOnStart
         SettingsStore.save(
             space.buercheng.kylintodo.data.AppSettings(
+                appName = appName,
                 themeMode = theme,
                 fontScale = scale,
                 widgetVisibleOnStart = widgetOnStart,
@@ -141,6 +156,20 @@ fun SettingsDialog(
                     // ---------------- 外观 ----------------
                     GroupTitle(Icons.Filled.Palette, "外观")
 
+                    SettingLabel("应用名称")
+                    AppNameField(
+                        value = controller.appName,
+                        onValueChange = { controller.update(name = it) },
+                    )
+                    Text(
+                        text = "会同时用于界面左上角与窗口标题，最多 " +
+                            "${AppInfo.MAX_NAME_LENGTH} 个字符。留空则恢复默认。",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
                     SettingLabel("皮肤")
                     OptionRow(
                         options = ThemeMode.entries.map { it to it.label },
@@ -234,7 +263,7 @@ fun SettingsDialog(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = AppInfo.DISPLAY_NAME,
+                                text = AppInfo.DEFAULT_DISPLAY_NAME,
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
@@ -266,7 +295,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(AppInfo.DISPLAY_NAME, fontWeight = FontWeight.Bold) },
+        title = { Text(AppInfo.DEFAULT_DISPLAY_NAME, fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 Text(
@@ -285,6 +314,35 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("关闭") }
         },
+    )
+}
+
+/**
+ * 应用名称输入框。
+ *
+ * 输入即时生效（边输边改界面左上角与窗口标题），让用户直接看到结果，
+ * 比"改完还要点保存"更直观。
+ */
+@Composable
+private fun AppNameField(
+    value: String,
+    onValueChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(UiTestTags.SETTINGS_APP_NAME),
+        placeholder = {
+            Text(
+                text = AppInfo.DEFAULT_DISPLAY_NAME,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
     )
 }
 

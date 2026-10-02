@@ -16,6 +16,12 @@ object UiTestTags {
     const val NEXT_BUTTON = "toolbar-next"
     const val TODAY_BUTTON = "toolbar-today"
 
+    /** 界面左上角的应用名称标题 */
+    const val APP_TITLE = "app-title"
+
+    /** 设置弹窗里的应用名称输入框 */
+    const val SETTINGS_APP_NAME = "settings-app-name"
+
     /** 日期格子：`calendar-cell-2027-02-18` */
     fun cell(date: LocalDate): String = "calendar-cell-$date"
 }

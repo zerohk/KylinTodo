@@ -18,6 +18,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextOverflow
+import space.buercheng.kylintodo.AppInfo
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,7 +72,11 @@ private fun dividerColor() = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f
  * 因此这里改用显式尺寸的 `Box`（宽 1dp、填满高度）作为竖直分隔线。
  */
 @Composable
-fun CalendarScreen(viewModel: AppViewModel) {
+fun CalendarScreen(
+    viewModel: AppViewModel,
+    /** 界面左上角显示的应用名称，由设置提供 */
+    appName: String = AppInfo.DEFAULT_DISPLAY_NAME,
+) {
     // 周选择弹窗的显隐由本地状态管理 —— 它纯属视图层的瞬时交互，
     // 不必进入 ViewModel，也就不污染可测试的状态模型。
     var showWeekPicker by remember { mutableStateOf(false) }
@@ -93,6 +100,7 @@ fun CalendarScreen(viewModel: AppViewModel) {
         Column(modifier = Modifier.fillMaxSize().probe("根 Column")) {
             CalendarToolbar(
                 viewModel = viewModel,
+                appName = appName,
                 onOpenWeekPicker = { showWeekPicker = true },
                 modifier = Modifier.probe("工具栏"),
             )
@@ -157,6 +165,7 @@ fun CalendarScreen(viewModel: AppViewModel) {
 @Composable
 private fun CalendarToolbar(
     viewModel: AppViewModel,
+    appName: String,
     onOpenWeekPicker: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -168,10 +177,16 @@ private fun CalendarToolbar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "麒麟日历",
+            text = appName,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            // 名称可自定义，超长时靠 ellipsis 截断而不是把工具栏挤变形
+            modifier = Modifier
+                .widthIn(max = 180.dp)
+                .testTag(UiTestTags.APP_TITLE),
         )
 
         Row(

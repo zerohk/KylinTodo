@@ -1,5 +1,6 @@
 package space.buercheng.kylintodo.data
 
+import space.buercheng.kylintodo.AppInfo
 import space.buercheng.kylintodo.domain.TodoItem
 import java.nio.file.Files
 import java.nio.file.Path
@@ -55,7 +56,7 @@ object TodoExporter {
     fun toJson(items: List<TodoItem>): String {
         val sb = StringBuilder()
         sb.append("{\n")
-        sb.append("  \"application\": \"大智桌面日历\",\n")
+        sb.append("  \"application\": ").append(jsonString(AppInfo.DEFAULT_DISPLAY_NAME)).append(",\n")
         sb.append("  \"exportedAt\": \"").append(ZonedDateTime.now()).append("\",\n")
         sb.append("  \"itemCount\": ").append(items.size).append(",\n")
         sb.append("  \"todos\": [\n")
