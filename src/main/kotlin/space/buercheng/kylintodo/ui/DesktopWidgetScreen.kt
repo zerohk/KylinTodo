@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -139,7 +140,14 @@ fun DesktopWidgetScreen(
                     color = scheme.onSurfaceVariant,
                 )
                 Box(modifier = Modifier.weight(1f))
-                TextButton(onClick = onAdd, modifier = Modifier.height(26.dp)) {
+                // 不要给 TextButton 设固定 height：Material3 的 TextButton 自带
+                // 上下各约 8dp 的 contentPadding，固定成 26dp 后留给文字的空间
+                // 不足 10dp，11sp 的中文字形会被裁掉。改为用紧凑的内边距让按钮
+                // 按内容自适应高度。
+                TextButton(
+                    onClick = onAdd,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                ) {
                     Icon(
                         Icons.Filled.Add,
                         contentDescription = null,

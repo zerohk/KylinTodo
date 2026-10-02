@@ -191,8 +191,19 @@ class AppViewModel(
 
     // ---------------- 待办操作 ----------------
 
-    /** 打开添加待办弹窗。 */
+    /**
+     * 打开添加待办弹窗。
+     *
+     * 会**同步把该日期设为选中日**。原因：侧栏列表只显示选中日的待办，
+     * 若为"非选中日"添加待办却不切换选中，用户会以为待办没加上（界面毫无变化），
+     * 反馈中"跳回原状态"的观感即由此而来。选中日跟随目标日期后，
+     * 新增的待办会立刻出现在列表中。
+     */
     fun openAddTodo(date: LocalDate = selectedDate) {
+        if (date != selectedDate) {
+            // 复用 selectDate，保证跨月时的锚点跟随逻辑一致
+            selectDate(date)
+        }
         addTodoTargetDate = date
     }
 
