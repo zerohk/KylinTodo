@@ -1,12 +1,33 @@
 package space.buercheng.kylintodo.ui
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.input.pointer.pointerInput
 
 /** 双击判定的默认时间窗口（毫秒），与系统常规设置接近。 */
 const val DEFAULT_DOUBLE_CLICK_TIMEOUT_MS = 280L
+
+/**
+ * 无涟漪效果的点击。
+ *
+ * 用于弹窗里的小控件（优先级按钮、标签胶囊的删除叉）：这些元素很小，
+ * Material 的涟漪会溢出边界并显得杂乱。语义与 `clickable` 一致，
+ * 仍保留无障碍所需的 interactionSource。
+ */
+fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier = composed {
+    val interaction = remember { MutableInteractionSource() }
+    clickable(
+        interactionSource = interaction,
+        indication = null,
+        onClick = onClick,
+    )
+}
 
 /**
  * 同时支持单击与双击的点击手势。

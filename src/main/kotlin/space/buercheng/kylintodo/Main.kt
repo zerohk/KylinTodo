@@ -63,6 +63,8 @@ fun main(args: Array<String>) {
             ).also { vm ->
                 // 命令行要求时启动即打开桌面小窗（便于验证与日常使用）
                 if (options.widget) vm.changeWidgetVisibility(true)
+                // 调试用：启动即打开添加弹窗，便于截图检查弹窗布局
+                if (options.openAddDialog) vm.openAddTodo()
             }
         }
 
@@ -112,8 +114,11 @@ fun main(args: Array<String>) {
                 viewModel.addTodoTargetDate?.let { targetDate ->
                     AddTodoDialog(
                         date = targetDate,
+                        dayInfo = viewModel.calendarDayOf(targetDate),
                         onDismiss = viewModel::dismissAddTodo,
-                        onConfirm = { text -> viewModel.addTodo(text, targetDate) },
+                        onConfirm = { text, priority, tags ->
+                            viewModel.addTodo(text, targetDate, priority, tags)
+                        },
                     )
                 }
             }
@@ -184,8 +189,11 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel) {
             viewModel.addTodoTargetDate?.let { targetDate ->
                 AddTodoDialog(
                     date = targetDate,
+                    dayInfo = viewModel.calendarDayOf(targetDate),
                     onDismiss = viewModel::dismissAddTodo,
-                    onConfirm = { text -> viewModel.addTodo(text, targetDate) },
+                    onConfirm = { text, priority, tags ->
+                        viewModel.addTodo(text, targetDate, priority, tags)
+                    },
                 )
             }
         }
@@ -200,6 +208,8 @@ private data class LaunchOptions(
     val seedTodo: Pair<String, LocalDate>? = null,
     /** 启动时即打开桌面小窗 */
     val widget: Boolean = false,
+    /** 调试用：启动时即打开添加待办弹窗，便于人工/截图验证弹窗布局 */
+    val openAddDialog: Boolean = false,
 )
 
 /**
@@ -212,11 +222,13 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
     var date: LocalDate? = null
     var seed: Pair<String, LocalDate>? = null
     var widget = false
+    var openAddDialog = false
 
     args.forEach { arg ->
         when {
             // 无值开关
             arg == "--widget" -> widget = true
+            arg == "--add" -> openAddDialog = true
 
             arg.startsWith("--view=") -> {
                 view = when (arg.removePrefix("--view=").lowercase()) {
@@ -245,5 +257,5 @@ private fun parseArgs(args: Array<String>): LaunchOptions {
             }
         }
     }
-    return LaunchOptions(view, date, seed, widget)
+    return LaunchOptions(view, date, seed, widget, openAddDialog)
 }

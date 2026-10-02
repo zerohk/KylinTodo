@@ -208,6 +208,26 @@ class AppViewModel(
         addTodoTargetDate = date
     }
 
+    /**
+     * 构造**任意日期**的日历模型，供弹窗标题行复述农历 / 节气 / 节假日。
+     *
+     * 之所以不直接用 `selectedCalendarDay`：用户可以为"非选中日"打开添加弹窗，
+     * 此时需要的是目标日期的信息，而不是当前选中日的。
+     */
+    fun calendarDayOf(date: LocalDate): CalendarDay {
+        val info = lunarService.describe(date)
+        return CalendarDay(
+            date = date,
+            inCurrentPeriod = true,
+            lunarText = info.lunarText,
+            solarTerm = info.solarTerm,
+            lunarFullText = info.lunarFullText,
+            dayType = info.dayType,
+            holidayName = info.holidayName,
+            todoCount = 0,
+        )
+    }
+
     /** 关闭添加待办弹窗。 */
     fun dismissAddTodo() {
         addTodoTargetDate = null
