@@ -85,6 +85,14 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
     var onOpenLogFolder: () -> String = { "" }
     var onClearLog: () -> String = { "" }
 
+    /**
+     * 重新读取日志概要。
+     *
+     * 单独一个回调（而不是复用自己的 logSummary）：清空日志后文件大小变了，
+     * 必须重新查询真实值 —— 否则界面会一直显示清空前的旧大小。
+     */
+    var onReadLogSummary: () -> String = { logSummary }
+
     var widgetVisibleOnStart by mutableStateOf(initial.widgetVisibleOnStart)
 
     /** 小窗是否始终置顶（需求 5）。小窗按钮与设置界面都能改。 */
@@ -242,6 +250,10 @@ fun SettingsDialog(
     var holidayMessage by remember { mutableStateOf<String?>(null) }
     /** 日志操作的反馈文本 */
     var logMessage by remember { mutableStateOf<String?>(null) }
+    /** 清空节假日数据的二次确认 */
+    var confirmClearHolidays by remember { mutableStateOf(false) }
+    /** 清空日志的二次确认 */
+    var confirmClearLog by remember { mutableStateOf(false) }
     /** 开机自启动写入失败时的提示（需求 6） */
     var autoStartMessage by remember { mutableStateOf<String?>(null) }
     // 导入/清空后需要重新读取概要，故用可变状态而不是直接调用
@@ -482,13 +494,25 @@ fun SettingsDialog(
                             Text("导入数据", fontSize = 12.sp)
                         }
                         TextButton(
-                            onClick = {
-                                holidayMessage = onClearHolidays()
-                                holidaySummaryText = holidaySummary()
-                            },
+                            onClick = { confirmClearHolidays = true },
                         ) {
                             Text("清空", fontSize = 12.sp)
                         }
+                    }
+                    if (confirmClearHolidays) {
+                        ConfirmDialog(
+                            title = "确认清空",
+                            message = "将删除所有已导入的节假日数据，回退到内置数据。" +
+                                "此操作无法撤销（但可重新导入模板恢复）。",
+                            confirmText = "清空",
+                            destructive = true,
+                            onConfirm = {
+                                confirmClearHolidays = false
+                                holidayMessage = onClearHolidays()
+                                holidaySummaryText = holidaySummary()
+                            },
+                            onDismiss = { confirmClearHolidays = false },
+                        )
                     }
 
                     holidayMessage?.let { msg ->
@@ -555,13 +579,26 @@ fun SettingsDialog(
                         Text("打开日志位置", fontSize = 12.sp)
                     }
                     TextButton(
-                        onClick = {
-                            logMessage = controller.onClearLog()
-                            controller.logSummary = controller.logSummary
-                        },
+                        onClick = { confirmClearLog = true },
                     ) {
                         Text("清空日志", fontSize = 12.sp)
                     }
+                }
+                if (confirmClearLog) {
+                    ConfirmDialog(
+                        title = "确认清空日志",
+                        message = "将删除当前日志文件。若正准备反馈问题，" +
+                            "建议先复制或发送日志再清空。",
+                        confirmText = "清空",
+                        destructive = true,
+                        onConfirm = {
+                            confirmClearLog = false
+                            logMessage = controller.onClearLog()
+                            // 重新读取概要：清空后文件大小已变，不刷新会显示旧值
+                            controller.logSummary = controller.onReadLogSummary()
+                        },
+                        onDismiss = { confirmClearLog = false },
+                    )
                 }
                 logMessage?.let { msg ->
                     Text(

@@ -341,6 +341,7 @@ fun main(args: Array<String>) {
                 settings.logSummary = AppLog.describe()
                 "日志已清空"
             }
+            settings.onReadLogSummary = { AppLog.describe() }
             true
         }
 
@@ -423,6 +424,7 @@ fun main(args: Array<String>) {
                 // 显示该日已添加的待办，并可继续添加（双击弹窗或点「+」）
                 viewModel.dayInfoDate?.let { infoDate ->
                     DayInfoDialog(
+                        viewModel = viewModel,
                         selectedDate = infoDate,
                         weekDays = viewModel.dayInfoWeekDays,
                         todosOfSelectedDate = viewModel.dayInfoTodos,

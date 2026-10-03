@@ -27,6 +27,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +69,10 @@ fun TodoList(
     onToggleSelection: (TodoItem) -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
+        // 单条删除前先确认（用户要求：所有删除操作都要确认）。
+        // 用「待确认的条目」而非布尔值，以便准确显示要删的是哪一条。
+        var pendingDelete by remember { mutableStateOf<TodoItem?>(null) }
+
         if (todos.isEmpty()) {
             if (showEmptyState) EmptyTodoState(onAdd = onAdd)
         } else {
@@ -77,13 +85,27 @@ fun TodoList(
                     TodoRow(
                         item = item,
                         onToggle = { onToggle(item) },
-                        onDelete = { onDelete(item) },
+                        onDelete = { pendingDelete = item },
                         selectionMode = selectionMode,
                         selected = item.id in selectedIds,
                         onToggleSelection = { onToggleSelection(item) },
                     )
                 }
             }
+        }
+
+        pendingDelete?.let { target ->
+            ConfirmDialog(
+                title = "确认删除",
+                message = "将删除待办「${target.text.take(40)}」，此操作无法撤销。",
+                confirmText = "删除",
+                destructive = true,
+                onConfirm = {
+                    pendingDelete = null
+                    onDelete(target)
+                },
+                onDismiss = { pendingDelete = null },
+            )
         }
     }
 }

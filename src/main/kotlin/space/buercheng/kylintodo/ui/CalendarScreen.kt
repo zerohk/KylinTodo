@@ -25,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -429,7 +430,18 @@ private fun TodoSidePanel(
 
         // 多选操作栏（需求 3）：仅在多选模式下占位，显示已选数量与批量动作
         if (viewModel.todoSelectionMode) {
-            BatchActionBar(viewModel = viewModel)
+            val visibleIds = viewModel.selectedDateTodos.map { it.id }.toSet()
+            BatchActionBar(
+                selectedCount = viewModel.selectedTodoIds.size,
+                totalCount = visibleIds.size,
+                allSelected = visibleIds.isNotEmpty() &&
+                    viewModel.selectedTodoIds.containsAll(visibleIds),
+                onToggleSelectAll = viewModel::toggleSelectAll,
+                onComplete = { viewModel.completeSelected(true) },
+                onUncomplete = { viewModel.completeSelected(false) },
+                onDelete = { viewModel.deleteSelected() },
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
 
         TodoList(
@@ -448,59 +460,128 @@ private fun TodoSidePanel(
 /**
  * 批量操作栏（需求 3）。
  *
- * 只在多选模式下出现。把「已选几条」放在最显眼处 ——
- * 批量删除前用户最需要确认的就是这个数字。
+ * ## 为什么分两行（曾出现按钮涨成竖排）
+ * 第一版把「已选 N 条 / 全选 / 完成 / 取消完成 / 删除」**全塞进一行**。
+ * 侧栏只有 300dp 宽，装不下 5 个控件，Material 的 TextButton 只能把
+ * 「删除」二字竖排换行 —— 截图上就是「删/除」上下两个字。
+ *
+ * 现在拆成两行：第一行只放状态与全选（不需要频繁点击），
+ * 第二行放三个动作按钮，各自有足够宽度，也不会再换行。
+ *
+ * ## 为什么删除要二次确认
+ * 多选模式下误触删除会**整批丢失**（待办没有回收站）。
+ * 用户明确要求加确认，这里照做。
  */
 @Composable
-private fun BatchActionBar(viewModel: AppViewModel) {
+fun BatchActionBar(
+    selectedCount: Int,
+    totalCount: Int,
+    /** 是否已全选当前列表 */
+    allSelected: Boolean,
+    onToggleSelectAll: () -> Unit,
+    onComplete: () -> String,
+    onUncomplete: () -> String,
+    onDelete: () -> String,
+    modifier: Modifier = Modifier,
+) {
     var message by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
     ) {
         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            // ---------- 第一行：状态 + 全选 ----------
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "已选 ${viewModel.selectedTodoIds.size} 条",
+                    text = "已选 $selectedCount 条",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                TextButton(onClick = { viewModel.toggleSelectAll() }) {
-                    Text(
-                        text = if (
-                            viewModel.selectedTodoIds.size == viewModel.selectedDateTodos.size &&
-                            viewModel.selectedTodoIds.isNotEmpty()
-                        ) {
-                            "取消全选"
-                        } else {
-                            "全选"
-                        },
-                        fontSize = 11.sp,
-                    )
-                }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { message = viewModel.completeSelected(true) }) {
-                    Text("完成", fontSize = 11.sp)
-                }
-                TextButton(onClick = { message = viewModel.completeSelected(false) }) {
-                    Text("取消完成", fontSize = 11.sp)
-                }
-                TextButton(onClick = { message = viewModel.deleteSelected() }) {
-                    Text("删除", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = onToggleSelectAll) {
+                    Text(text = if (allSelected) "取消全选" else "全选", fontSize = 11.sp)
                 }
             }
+
+            // ---------- 第二行：动作按钮 ----------
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ActionButton("完成", onClick = { message = onComplete() })
+                ActionButton("取消完成", onClick = { message = onUncomplete() })
+                ActionButton(
+                    text = "删除",
+                    isDestructive = true,
+                    onClick = {
+                        // 选了 0 条时不必弹确认 —— 直接给出提示更省一步
+                        if (selectedCount == 0) "请先选择待办" else {
+                            confirmDelete = true
+                            null
+                        }.also { if (it != null) message = it }
+                    },
+                )
+            }
+
             message?.let {
                 Text(
                     text = it,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }
+    }
+
+    if (confirmDelete) {
+        ConfirmDialog(
+            title = "确认删除",
+            message = "将删除选中的 $selectedCount 条待办，此操作无法撤销。",
+            confirmText = "删除",
+            destructive = true,
+            onConfirm = {
+                confirmDelete = false
+                message = onDelete()
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
+}
+
+/**
+ * 操作栏里的单个动作按钮。
+ *
+ * 与 `TextButton` 的区别：固定最小宽度。默认的 TextButton 在窄容器里
+ * 会把文字竖排换行（这正是「删除」曾显示成两行的原因），
+ * 给定宽度下限可以稳定避免。
+ */
+@Composable
+private fun ActionButton(
+    text: String,
+    onClick: () -> Unit,
+    isDestructive: Boolean = false,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.widthIn(min = 56.dp),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            maxLines = 1,
+            softWrap = false,
+            color = if (isDestructive) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+        )
     }
 }
