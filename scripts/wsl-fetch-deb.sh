@@ -7,7 +7,7 @@
 # 可重复执行且不会挂住。
 
 # 版本可用环境变量 DEB_VERSION 覆盖，避免每次发版都改脚本（曾经漏改过一次）
-DEB_VERSION=${DEB_VERSION:-1.1.6}
+DEB_VERSION=${DEB_VERSION:-1.1.7}
 DEB=/root/kylintodo-deb/build/compose/binaries/main/deb/dazhi-calendar_${DEB_VERSION}_amd64.deb
 DEST=/mnt/e/Kotlin/DSH-Kylin/build/deb-output
 
