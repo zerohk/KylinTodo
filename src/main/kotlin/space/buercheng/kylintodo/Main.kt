@@ -49,6 +49,8 @@ import space.buercheng.kylintodo.ui.AddTodoDialog
 import space.buercheng.kylintodo.ui.AppViewModel
 import space.buercheng.kylintodo.data.SettingsStore
 import space.buercheng.kylintodo.ui.SettingsController
+import space.buercheng.kylintodo.ui.WindowTitleBar
+import space.buercheng.kylintodo.ui.ResizeHandle
 import space.buercheng.kylintodo.ui.SearchDialog
 import space.buercheng.kylintodo.ui.SettingsDialog
 import space.buercheng.kylintodo.ui.AppIcon
@@ -357,15 +359,14 @@ fun main(args: Array<String>) {
             title = settings.appName,
             state = windowState,
             icon = AppIcon.painter,
-            // 允许用鼠标拖拽边框缩放。Compose Desktop 默认即为 true，
-            // 这里显式写出以免后续误改。
-            //
-            // 注意：Compose 1.7.3 的 WindowState 没有 minimumSize 属性
-            // （javap 确认只有 placement / minimized / position / size），
-            // 因此不设最小尺寸。布局本身是全自适应的 —— 日历列用 weight(1f)
-            // 吸收多余宽度，侧栏固定 300dp，行高按可用高度除以 6 计算，
-            // 窗口拉大拉小都不会出现滚动条或错位。
-            resizable = true,
+            // 无边框自绘窗口（需求：统一标题栏、整窗真透明）。
+            // 去掉系统边框后：
+            //  - 系统标题栏消失，由 WindowTitleBar 自绘（含拖动/最小化/关闭）
+            //  - 系统边缘缩放消失，由 ResizeHandle 右下角把手替代
+            undecorated = true,
+            // 透明窗口：配合内容层的 windowOpacity(alpha) 实现「整窗相对系统的
+            // 透明度」—— 不再只是内容变淡，而是窗口后面能真正透出来。
+            transparent = true,
             // 全局快捷键：Ctrl+Shift+D 开关调试状态栏。
             // 用 Preview 阶段拦截，保证任何子组件都不会先消费掉这个组合键。
             onPreviewKeyEvent = { event ->
@@ -386,23 +387,36 @@ fun main(args: Array<String>) {
                 bodyFontFamily = settings.bodyFontFamily,
                 backgroundColor = settings.backgroundColor,
             ) {
-                // 用 Column 包住：主题的 content 是单个可组合项，
-                // 直接并列两个兄弟节点会互相重叠而非上下排列。
-                Column(
-                    // 主窗口透明度（需求 4）：施加在最外层，让整个界面一起变淡
-                    modifier = Modifier.fillMaxSize().windowOpacity(settings.mainOpacity),
-                ) {
-                    // 调试状态栏：把 anchor / selected / 网格范围等关键状态平铺显示，
-                    // 并记录操作序列，供用户复现问题时截图。
-                    if (debugState.visible) {
-                        CompositionLocalProvider(LocalActionLog provides actionLog) {
-                            DebugStatusBar(viewModel = viewModel)
+                // 无边框窗口：整窗内容 + 右下角 resize 把手。
+                // windowOpacity 施加在最外层 —— 配合 transparent=true，
+                // 这里就是「整窗相对系统的透明度」，而不再只是内容变淡。
+                Box(modifier = Modifier.fillMaxSize().windowOpacity(settings.mainOpacity)) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // 自绘标题栏：拖动移动 + 最小化 + 关闭
+                        WindowTitleBar(
+                            title = settings.appName,
+                            windowState = windowState,
+                            onClose = ::exitApplication,
+                        )
+
+                        // 调试状态栏：把 anchor / selected / 网格范围等关键状态平铺显示，
+                        // 并记录操作序列，供用户复现问题时截图。
+                        if (debugState.visible) {
+                            CompositionLocalProvider(LocalActionLog provides actionLog) {
+                                DebugStatusBar(viewModel = viewModel)
+                            }
+                        }
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            CalendarScreen(viewModel = viewModel, appName = settings.appName)
                         }
                     }
 
-                    Box(modifier = Modifier.weight(1f)) {
-                        CalendarScreen(viewModel = viewModel, appName = settings.appName)
-                    }
+                    // 右下角缩放把手：拖拽调整窗口大小
+                    ResizeHandle(
+                        windowState = windowState,
+                        modifier = Modifier.align(Alignment.BottomEnd),
+                    )
                 }
 
                 // 搜索弹窗（需求：右上角改为搜索按钮）
