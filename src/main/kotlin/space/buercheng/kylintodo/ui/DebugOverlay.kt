@@ -54,18 +54,18 @@ import java.time.LocalDate
  */
 @Composable
 fun rememberDebugOverlayState(initiallyVisible: Boolean = false): DebugOverlayState {
-    var visible by remember { mutableStateOf(initiallyVisible) }
-    return remember(visible) {
-        DebugOverlayState(visible) { visible = it }
-    }
+    // 注意：不能用 remember(visible) —— 那会在 visible 每次变化时重建对象，
+    // 而 Window 的 onPreviewKeyEvent 捕获的是旧对象引用，导致 toggle 后
+    // 状态"回弹"，表现为"能打开但关不掉"（已修复的 bug）。
+    return remember { DebugOverlayState(initiallyVisible) }
 }
 
-/** 调试状态栏的开关状态。 */
-class DebugOverlayState(
-    val visible: Boolean,
-    private val setVisible: (Boolean) -> Unit,
-) {
-    fun toggle() = setVisible(!visible)
+/** 调试状态栏的开关状态。visible 本身是 Compose 状态，对象身份稳定。 */
+class DebugOverlayState(initiallyVisible: Boolean) {
+    var visible by mutableStateOf(initiallyVisible)
+        private set
+
+    fun toggle() { visible = !visible }
 }
 
 /**
