@@ -207,17 +207,37 @@ fun main(args: Array<String>) {
             )
         }
 
-        // 未就绪时只显示启动画面并提前结束本次组合。
-        // 用 as? 而非 when：既拿到智能转换后的非空引用，又保持后续代码缩进不变
-        // （减少 diff，避免大范围改动引入意外）。
+        // 未就绪时只显示启动画面。
+        //
+        // **必须包在自己的 Window 里**，不能直接渲染在 application {} 中：
+        // application {} 提供的是 ApplicationScope，它**不建立 Compose 的
+        // 窗口级 CompositionLocal**（LocalFontFamilyResolver / LocalDensity 等）。
+        // 直接放 Text 之类的组件会抛
+        //   IllegalStateException: CompositionLocal LocalFontFamilyResolver not present
+        // 表现为启动即崩、Windows 弹出 "Failed to launch JVM"。
+        // （这正是 1.1.1 引入的回归，已由 AppLog 记录的堆栈定位。）
         val booted = bootState as? BootState.Ready
         if (booted == null) {
-            SplashWindowContent(
-                message = (bootState as? BootState.Failed)
-                    ?.let { "启动失败：${it.reason}" }
-                    ?: "正在启动…",
-                isError = bootState is BootState.Failed,
-            )
+            Window(
+                onCloseRequest = ::exitApplication,
+                title = AppInfo.DEFAULT_DISPLAY_NAME,
+                icon = AppIcon.painter,
+                state = rememberWindowState(
+                    size = DpSize(380.dp, 240.dp),
+                    position = WindowPosition(androidx.compose.ui.Alignment.Center),
+                ),
+                resizable = false,
+                // 无边框：启动画面只是短暂的过渡，带标题栏会显得突兀
+                undecorated = true,
+                alwaysOnTop = true,
+            ) {
+                SplashWindowContent(
+                    message = (bootState as? BootState.Failed)
+                        ?.let { "启动失败：${it.reason}" }
+                        ?: "正在启动…",
+                    isError = bootState is BootState.Failed,
+                )
+            }
             return@application
         }
 
