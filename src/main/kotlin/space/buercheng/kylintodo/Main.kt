@@ -41,6 +41,7 @@ import space.buercheng.kylintodo.data.AppPaths
 import space.buercheng.kylintodo.data.AutoStartManager
 import space.buercheng.kylintodo.data.DesktopDataExporter
 import space.buercheng.kylintodo.data.DesktopHolidayTransfer
+import space.buercheng.kylintodo.data.DesktopIntegration
 import space.buercheng.kylintodo.data.SingleInstanceGuard
 import space.buercheng.kylintodo.data.SqliteTodoRepository
 import space.buercheng.kylintodo.domain.TodoPriority
@@ -340,21 +341,17 @@ fun main(args: Array<String>) {
         remember(settings) {
             settings.logSummary = AppLog.describe()
             settings.onOpenLogFolder = {
-                runCatching {
-                    val dir = AppLog.currentFile()?.parent
-                    if (dir == null) {
-                        "日志尚未初始化"
-                    } else {
-                        // Desktop.open 用系统默认程序打开文件夹，
-                        // 比"把路径复制给用户让他自己找"友好得多。
-                        java.awt.Desktop.getDesktop().open(dir.toFile())
-                        "已打开日志文件夹：$dir"
-                    }
-                }.getOrElse { e ->
-                    "无法打开文件夹：${e.message ?: e::class.simpleName}\n" +
-                        "可手动前往：${AppLog.currentFile()?.parent}"
+                val dir = AppLog.currentFile()?.parent
+                if (dir == null) {
+                    "日志尚未初始化"
+                } else {
+                    // 多级回退：AWT Desktop → xdg-open/explorer 等平台命令
+                    // → 复制路径到剪贴板。麒麟（UKUI）上 Desktop 常常不可用，
+                    // 单靠它会让用户完全打不开文件夹。
+                    DesktopIntegration.openDirectory(dir)
                 }
             }
+            settings.onReadLogContent = { AppLog.readContent() }
             settings.onClearLog = {
                 AppLog.clear()
                 settings.logSummary = AppLog.describe()

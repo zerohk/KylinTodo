@@ -212,6 +212,32 @@ object AppLog {
         return "$file（$kb KB，上限 ${MAX_BYTES / 1024 / 1024} MB）"
     }
 
+    /**
+     * 读取日志内容（供**应用内**查看）。
+     *
+     * 这是"打开日志文件夹"的兜底方案：麒麟等桌面环境下外部文件管理器
+     * 未必能被拉起，内置查看器则完全绕开这个问题 ——
+     * 用户可以直接在应用里把内容复制给我们。
+     *
+     * @param maxLines 只取最后若干行：日志可达 2MB，全量塞进对话框既慢也没必要
+     */
+    fun readContent(maxLines: Int = 500): String {
+        val file = logFile ?: return "日志未启用"
+        return runCatching {
+            if (!Files.exists(file)) return "日志文件不存在：$file"
+            val lines = Files.readAllLines(file, Charsets.UTF_8)
+            if (lines.size <= maxLines) {
+                lines.joinToString("\n")
+            } else {
+                val omitted = lines.size - maxLines
+                "…（已省略最早的 $omitted 行，共 ${lines.size} 行）\n" +
+                    lines.takeLast(maxLines).joinToString("\n")
+            }
+        }.getOrElse { e ->
+            "读取日志失败：${e.message ?: e::class.simpleName}"
+        }
+    }
+
     /** 供测试与"清理"入口使用：删除日志文件。 */
     fun clear() {
         val file = logFile ?: return

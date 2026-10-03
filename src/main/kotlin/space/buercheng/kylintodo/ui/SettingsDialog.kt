@@ -100,6 +100,14 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
      */
     var onReadLogSummary: () -> String = { logSummary }
 
+    /**
+     * 读取日志正文（供应用内查看）。
+     *
+     * 存在的原因：麒麟等桌面环境下外部文件管理器未必能拉起，
+     * 内置查看器让用户不依赖任何外部程序就能看到并复制日志。
+     */
+    var onReadLogContent: () -> String = { "" }
+
     var widgetVisibleOnStart by mutableStateOf(initial.widgetVisibleOnStart)
 
     /** 小窗是否始终置顶（需求 5）。小窗按钮与设置界面都能改。 */
@@ -308,6 +316,8 @@ fun SettingsDialog(
     var confirmClearHolidays by remember { mutableStateOf(false) }
     /** 清空日志的二次确认 */
     var confirmClearLog by remember { mutableStateOf(false) }
+    /** 日志正文（非 null 时显示内置查看器） */
+    var logContent by remember { mutableStateOf<String?>(null) }
     /** 开机自启动写入失败时的提示（需求 6） */
     var autoStartMessage by remember { mutableStateOf<String?>(null) }
     // 导入/清空后需要重新读取概要，故用可变状态而不是直接调用
@@ -686,6 +696,13 @@ fun SettingsDialog(
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // 「查看日志内容」放在最前：它不依赖任何外部程序，
+                    // 在麒麟等"打不开文件夹"的环境里是最可靠的入口。
+                    Button(
+                        onClick = { logContent = controller.onReadLogContent() },
+                    ) {
+                        Text("查看日志内容", fontSize = 12.sp)
+                    }
                     OutlinedButton(
                         onClick = { logMessage = controller.onOpenLogFolder() },
                     ) {
@@ -696,6 +713,12 @@ fun SettingsDialog(
                     ) {
                         Text("清空日志", fontSize = 12.sp)
                     }
+                }
+                if (logContent != null) {
+                    LogViewerDialog(
+                        content = logContent.orEmpty(),
+                        onDismiss = { logContent = null },
+                    )
                 }
                 if (confirmClearLog) {
                     ConfirmDialog(
@@ -884,6 +907,61 @@ private fun SectionDivider() {
             .padding(vertical = 12.dp)
             .height(1.dp)
             .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+    )
+}
+
+/**
+ * 内置日志查看器。
+ *
+ * ## 为什么要有它
+ * "打开日志文件夹"依赖外部文件管理器被成功拉起，而**麒麟（UKUI）上
+ * 这一步经常失败**。内置查看器完全在应用内渲染，不依赖任何外部程序，
+ * 用户可以直接看到内容并复制给我们。
+ *
+ * 用等宽字体显示，便于阅读堆栈；内容超长时可滚动。
+ */
+@Composable
+private fun LogViewerDialog(content: String, onDismiss: () -> Unit) {
+    var copied by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "运行日志",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        text = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text = content.ifBlank { "（日志为空）" },
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    copied = space.buercheng.kylintodo.data.DesktopIntegration
+                        .copyToClipboard(content)
+                },
+            ) {
+                Text(if (copied) "已复制" else "复制全部")
+            }
+        },
     )
 }
 
