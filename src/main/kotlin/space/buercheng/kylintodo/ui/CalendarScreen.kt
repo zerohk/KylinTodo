@@ -524,12 +524,17 @@ fun BatchActionBar(
                 ActionButton(
                     text = "删除",
                     isDestructive = true,
+                    // 用清晰的 if-else 语句，而不是把 if-else 表达式与 .also 链在一起。
+                    // 原先那种写法（`if (…) "…" else { …; null }.also { … }`）
+                    // 依赖 Kotlin 的表达式解析细节，极易被误读，
+                    // 也确实是"删除偶尔不弹确认框"这类问题的温床。
                     onClick = {
-                        // 选了 0 条时不必弹确认 —— 直接给出提示更省一步
-                        if (selectedCount == 0) "请先选择待办" else {
+                        if (selectedCount == 0) {
+                            // 一条都没选时直接提示：此时弹确认框没有意义
+                            message = "请先选择待办"
+                        } else {
                             confirmDelete = true
-                            null
-                        }.also { if (it != null) message = it }
+                        }
                     },
                 )
             }

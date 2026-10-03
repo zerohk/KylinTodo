@@ -93,6 +93,18 @@ fun DayInfoDialog(
     var dragX by remember(selectedDate) { mutableStateOf(0f) }
     var dragY by remember(selectedDate) { mutableStateOf(0f) }
 
+    /**
+     * 待确认删除的待办。
+     *
+     * **放在弹窗顶层而不是子组件里**，原因有二：
+     *  1. 弹窗内有两处删除入口（当天待办、本周其余安排），
+     *     状态放顶层才能让两处**共用同一个确认弹框**。
+     *  2. 子组件会随数据变化被条件移除（例如当天待办被删空后，
+     *     列表分支切换成"暂无待办"），状态放在子组件里会随之丢失 ——
+     *     弹框可能刚弹出就被销毁。顶层状态不受影响。
+     */
+    var pendingDelete by remember { mutableStateOf<TodoItem?>(null) }
+
     // 铺满整个内容区，让弹窗可以在窗口内任意拖动而不被裁剪
     Box(modifier = Modifier.fillMaxSize()) {
         Surface(
@@ -242,7 +254,7 @@ fun DayInfoDialog(
                 TodoRows(
                     items = todosOfSelectedDate,
                     onToggleTodo = onToggleTodo,
-                    onDeleteTodo = onDeleteTodo,
+                    onRequestDelete = { pendingDelete = it },
                     selectionMode = viewModel.todoSelectionMode,
                     selectedIds = viewModel.selectedTodoIds,
                     onToggleSelection = viewModel::toggleTodoSelection,
@@ -275,7 +287,9 @@ fun DayInfoDialog(
                             CompactTodoRow(
                                 item = item,
                                 onToggle = { onToggleTodo(item) },
-                                onDelete = { onDeleteTodo(item) },
+                                // 同样先确认再删（此前这里直接删除，是
+                                // 「有时不弹确认框」的根因）
+                                onDelete = { pendingDelete = item },
                             )
                         }
                     }
@@ -283,6 +297,22 @@ fun DayInfoDialog(
             }
         }
         }
+    }
+
+    // 统一的删除确认框：当天待办与本周其余安排共用。
+    // 放在弹窗顶层（Surface 之外），不受列表分支切换影响。
+    pendingDelete?.let { target ->
+        ConfirmDialog(
+            title = "确认删除",
+            message = "将删除待办「${target.text.take(40)}」，此操作无法撤销。",
+            confirmText = "删除",
+            destructive = true,
+            onConfirm = {
+                pendingDelete = null
+                onDeleteTodo(target)
+            },
+            onDismiss = { pendingDelete = null },
+        )
     }
 }
 
@@ -310,41 +340,23 @@ private fun EmptyHint(text: String) {
 private fun TodoRows(
     items: List<TodoItem>,
     onToggleTodo: (TodoItem) -> Unit,
-    onDeleteTodo: (TodoItem) -> Unit,
+    /** 请求删除（由上层弹确认框，本组件不直接删除） */
+    onRequestDelete: (TodoItem) -> Unit,
     selectionMode: Boolean = false,
     selectedIds: Set<String> = emptySet(),
     onToggleSelection: (TodoItem) -> Unit = {},
 ) {
-    // 单条删除前先确认（用户要求：所有删除操作都要确认）。
-    // 用「待确认的条目」而非布尔值：未来若同时存在多处删除入口，
-    // 布尔值无法表达"要删哪一条"。
-    var pendingDelete by remember { mutableStateOf<TodoItem?>(null) }
-
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
         items(items, key = { it.id }) { item ->
             CompactTodoRow(
                 item = item,
                 onToggle = { onToggleTodo(item) },
-                onDelete = { pendingDelete = item },
+                onDelete = { onRequestDelete(item) },
                 selectionMode = selectionMode,
                 selected = item.id in selectedIds,
                 onToggleSelection = { onToggleSelection(item) },
             )
         }
-    }
-
-    pendingDelete?.let { target ->
-        ConfirmDialog(
-            title = "确认删除",
-            message = "将删除待办「${target.text.take(40)}」，此操作无法撤销。",
-            confirmText = "删除",
-            destructive = true,
-            onConfirm = {
-                pendingDelete = null
-                onDeleteTodo(target)
-            },
-            onDismiss = { pendingDelete = null },
-        )
     }
 }
 
