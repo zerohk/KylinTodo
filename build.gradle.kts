@@ -77,7 +77,7 @@ compose.desktop {
             packageName = "dazhi-calendar"
             // 版本号同时决定安装包文件名，必须随每次发布递增，
             // 否则新包会与旧包重名、覆盖下载链接。
-            packageVersion = "1.1.3"
+            packageVersion = "1.1.4"
             description = "大智桌面日历 — 面向银河麒麟的日历与待办应用"
             vendor = "zerohk"
 
