@@ -66,10 +66,20 @@ object AutoStartManager {
         return if (enabled) {
             Files.createDirectories(autostartDir)
             Files.writeString(target, desktopEntry())
+            // 部分桌面环境（MATE / 旧版 GNOME）要求 .desktop 有执行位才视为
+            // "受信任"并执行；没有执行位会静默忽略。加上更稳妥。
+            runCatching { target.toFile().setExecutable(true) }
+            AppLog.info(
+                "AutoStart",
+                "已写入自启动项：$target（Exec=${
+                    desktopEntry().lines().first { it.startsWith("Exec=") }
+                }）",
+            )
             null
         } else {
             // 不存在也算成功：用户的意图是"不要自启动"，已是该状态
             runCatching { Files.deleteIfExists(target) }
+            AppLog.info("AutoStart", "已移除自启动项：$target")
             null
         }
     }
@@ -92,20 +102,41 @@ object AutoStartManager {
     /**
      * 当前可执行文件的绝对路径。
      *
-     * 优先用 `java.home` 推断安装布局（jpackage 生成的启动器位于
-     * `<安装目录>/bin/`，而 `java.home` 指向 `<安装目录>/runtime`），
-     * 推断不出来时回落到 `user.dir` 下的启动脚本。
+     * ## 为什么按平台区分上溯层级
+     * jpackage 在两端生成的应用布局不同，`java.home`（JVM 运行时）的位置也不同：
+     *
+     *  - **Linux**：`/opt/dazhi-calendar/bin/dazhi-calendar`（启动器）
+     *    + `/opt/dazhi-calendar/lib/runtime`（JVM）→ java.home 上溯**两级**才是安装根
+     *  - **Windows**：`<root>/dazhi-calendar.exe`（启动器）
+     *    + `<root>/runtime`（JVM）→ java.home 上溯**一级**就是安装根
+     *
+     * 上一版两个平台都用「上溯一级」，在 Linux 上会得到
+     * `<root>/lib/bin/dazhi-calendar` 这个**不存在的路径**，导致自启动静默失效。
+     * 已实测确认 deb 布局（WSL 解包）：runtime 在 `lib/runtime`。
      */
     private fun currentExecutablePath(): String? {
         val home = System.getProperty("java.home") ?: return null
-        // runtime/bin -> 上一级是安装根目录
-        val installRoot = File(home).parentFile ?: return null
-        val candidates = listOf(
-            File(installRoot, "bin/dazhi-calendar"),
-            File(installRoot, "bin/dazhi-calendar.exe"),
-        )
-        return candidates.firstOrNull { it.exists() }?.absolutePath
-            ?: candidates.first().absolutePath
+        return resolveLauncherPath(home, isLinux())
+    }
+
+    /**
+     * 从 java.home 推断启动器路径（纯函数，便于单元测试）。
+     *
+     * jpackage 布局（已用 WSL 解包 deb 实测）：
+     *  - Linux：`<root>/bin/dazhi-calendar`（启动器）+ `<root>/lib/runtime`（JVM）
+     *    → java.home 上溯**两级**
+     *  - Windows：`<root>/dazhi-calendar.exe`（启动器）+ `<root>/runtime`（JVM）
+     *    → java.home 上溯**一级**
+     */
+    internal fun resolveLauncherPath(javaHome: String, linux: Boolean): String {
+        val home = File(javaHome)
+        return if (linux) {
+            val root = home.parentFile?.parentFile
+            File(root, "bin/dazhi-calendar").absolutePath
+        } else {
+            val root = home.parentFile
+            File(root, "dazhi-calendar.exe").absolutePath
+        }
     }
 
     // ----------------------------------------------------------- Windows
