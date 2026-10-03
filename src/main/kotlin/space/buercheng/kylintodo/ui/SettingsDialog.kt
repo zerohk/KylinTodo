@@ -2,6 +2,9 @@ package space.buercheng.kylintodo.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -107,6 +110,21 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
     /** 小窗不透明度（需求 4） */
     var widgetOpacity by mutableStateOf(initial.widgetOpacity)
 
+    /** 自定义背景色（ARGB），null = 跟随主题 */
+    var backgroundColor by mutableStateOf(initial.backgroundColor)
+
+    /** 自定义背景图片路径，null = 无 */
+    var backgroundImagePath by mutableStateOf(initial.backgroundImagePath)
+
+    /** 标题字体家族名，null = 默认 */
+    var titleFontFamily by mutableStateOf(initial.titleFontFamily)
+
+    /** 正文字体家族名，null = 默认 */
+    var bodyFontFamily by mutableStateOf(initial.bodyFontFamily)
+
+    /** 标题栏是否始终纯白 */
+    var titleBarAlwaysWhite by mutableStateOf(initial.titleBarAlwaysWhite)
+
     /**
      * 修改后立即持久化，避免用户忘记保存而丢失设置。
      *
@@ -122,6 +140,11 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
         auto: Boolean = autoStart,
         mainAlpha: Float = mainOpacity,
         widgetAlpha: Float = widgetOpacity,
+        bgColor: Long? = backgroundColor,
+        bgImage: String? = backgroundImagePath,
+        titleFont: String? = titleFontFamily,
+        bodyFont: String? = bodyFontFamily,
+        titleWhite: Boolean = titleBarAlwaysWhite,
     ) {
         appName = AppInfo.normalizeName(name)
         themeMode = theme
@@ -132,6 +155,11 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
         // 夹取到合法区间：滑块理论上不会越界，但配置可能被手工改坏
         mainOpacity = mainAlpha.coerceIn(SettingsStore.OPACITY_MIN, 1f)
         widgetOpacity = widgetAlpha.coerceIn(SettingsStore.OPACITY_MIN, 1f)
+        backgroundColor = bgColor
+        backgroundImagePath = bgImage
+        titleFontFamily = titleFont
+        bodyFontFamily = bodyFont
+        titleBarAlwaysWhite = titleWhite
         SettingsStore.save(
             space.buercheng.kylintodo.data.AppSettings(
                 appName = appName,
@@ -142,6 +170,11 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
                 autoStart = autoStart,
                 mainOpacity = mainOpacity,
                 widgetOpacity = widgetOpacity,
+                backgroundColor = backgroundColor,
+                backgroundImagePath = backgroundImagePath,
+                titleFontFamily = titleFontFamily,
+                bodyFontFamily = bodyFontFamily,
+                titleBarAlwaysWhite = titleBarAlwaysWhite,
             )
         )
     }
@@ -333,6 +366,45 @@ fun SettingsDialog(
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SettingLabel("自定义背景颜色")
+                    Text(
+                        text = "选择后整窗背景变为该颜色（纯色）；「清除」恢复跟随主题。",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    BackgroundColorPicker(
+                        current = controller.backgroundColor,
+                        onPick = { controller.update(bgColor = it) },
+                        onClear = { controller.update(bgColor = null) },
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SettingLabel("标题字体 / 正文字体")
+                    Text(
+                        text = "选择系统已安装的字体；「跟随主题」使用默认字体。",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FontPicker(
+                        label = "标题字体",
+                        current = controller.titleFontFamily,
+                        onPick = { controller.update(titleFont = it) },
+                    )
+                    FontPicker(
+                        label = "正文字体",
+                        current = controller.bodyFontFamily,
+                        onPick = { controller.update(bodyFont = it) },
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SettingSwitchRow(
+                        title = "标题栏始终纯白",
+                        subtitle = "无论皮肤是浅色还是深色，顶部标题栏都用纯白背景",
+                        checked = controller.titleBarAlwaysWhite,
+                        onCheckedChange = { controller.update(titleWhite = it) },
                     )
 
                     // ---------------- 启动行为 ----------------
@@ -758,4 +830,118 @@ private fun SectionDivider() {
             .height(1.dp)
             .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
     )
+}
+
+/** 预设背景色：一行可点的色块，最后一格是「清除」。 */
+@Composable
+private fun BackgroundColorPicker(
+    current: Long?,
+    onPick: (Long) -> Unit,
+    onClear: () -> Unit,
+) {
+    // 一组柔和的浅色背景色，兼顾浅色/深色主题下文字可读性。
+    val presets = listOf(
+        "默认" to null,
+        "米白" to 0xFFF7F3E8,
+        "浅蓝" to 0xFFEAF2FA,
+        "浅绿" to 0xFFEAF6EC,
+        "浅粉" to 0xFFFAECEE,
+        "浅灰" to 0xFFF0F1F3,
+        "纯白" to 0xFFFFFFFF,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        presets.forEach { (label, argb) ->
+            val selected = if (argb == null) current == null else current == argb
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(if (argb == null) Color(0xFFE5E7EB) else Color(argb))
+                        .border(
+                            width = if (selected) 2.dp else 1.dp,
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            shape = CircleShape,
+                        )
+                        .clickableNoRipple {
+                            if (argb == null) onClear() else onPick(argb)
+                        },
+                )
+                Text(text = label, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+    }
+}
+
+/**
+ * 字体选择器：列出系统已安装字体（取前若干个常用项）。
+ *
+ * 注意：系统字体名来自 AWT 探测（`GraphicsEnvironment`），可能与 Compose/Skia
+ * 实际可渲染的字体不完全一致；解析失败会静默回退默认字体，不会崩溃。
+ */
+@Composable
+private fun FontPicker(
+    label: String,
+    current: String?,
+    onPick: (String?) -> Unit,
+) {
+    val fonts = remember {
+        runCatching {
+            java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .availableFontFamilyNames
+                .toList()
+                .sorted()
+        }.getOrDefault(emptyList())
+    }
+    // 只展示前 12 个常用字体，避免弹窗过长；用户可按名搜索的场景暂不覆盖。
+    val options = (listOf<String?>(null) + fonts.take(12))
+        .map { it to (it ?: "跟随主题") }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(64.dp),
+        )
+        // 用滚动行承载字体选项，避免字体名过长撑破布局。
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+                options.forEach { (family, text) ->
+                    val selected = family == current
+                    val scheme = MaterialTheme.colorScheme
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (selected) scheme.primary.copy(alpha = 0.16f)
+                                else scheme.surfaceVariant.copy(alpha = 0.35f)
+                            )
+                            .border(
+                                width = if (selected) 1.5.dp else 1.dp,
+                                color = if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(8.dp),
+                            )
+                            .clickableNoRipple { onPick(family) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = text,
+                            fontSize = 12.sp,
+                            color = if (selected) scheme.primary else scheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+    }
 }

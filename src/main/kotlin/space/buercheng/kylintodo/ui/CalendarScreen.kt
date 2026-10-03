@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.style.TextOverflow
@@ -277,15 +278,15 @@ private fun CalendarToolbar(
         )
 
         Button(
-            onClick = { viewModel.openAddTodo() },
+            onClick = { viewModel.openSearch() },
             modifier = Modifier.padding(start = 12.dp),
         ) {
             Icon(
-                Icons.Filled.Add,
+                Icons.Filled.Search,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
             )
-            Text("新增待办", fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+            Text("搜索", fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
         }
     }
 }

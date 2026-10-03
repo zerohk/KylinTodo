@@ -107,7 +107,20 @@ fun DayInfoDialog(
             tonalElevation = 6.dp,
             shadowElevation = 12.dp,
         ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                // 双击内容区任意空白处继续添加待办（需求明确要求）。
+                //
+                // 放在 Column 而不是 Surface 上：标题行已占用拖动的手势，
+                // 若再在 Surface 上叠加 tap 检测会与标题行的手势竞争。
+                // 这里只作用于标题行以下的内容区，与拖动互不干扰。
+                .pointerInput(selectedDate) {
+                    detectTapGestures(
+                        onDoubleTap = { onAddTodoForDate(selectedDate) },
+                    )
+                },
+        ) {
             // ---------------- 标题行（同时是拖动把手） ----------------
             //
             // 整个标题行都可拖动，而不只是某个小图标：把手越大越好点中，

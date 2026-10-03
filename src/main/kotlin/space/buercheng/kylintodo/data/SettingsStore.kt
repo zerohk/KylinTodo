@@ -48,6 +48,11 @@ object SettingsStore {
     private const val KEY_AUTO_START = "autoStart"
     private const val KEY_MAIN_OPACITY = "mainOpacity"
     private const val KEY_WIDGET_OPACITY = "widgetOpacity"
+    private const val KEY_BACKGROUND_COLOR = "backgroundColor"
+    private const val KEY_BACKGROUND_IMAGE = "backgroundImagePath"
+    private const val KEY_TITLE_FONT = "titleFontFamily"
+    private const val KEY_BODY_FONT = "bodyFontFamily"
+    private const val KEY_TITLE_BAR_WHITE = "titleBarAlwaysWhite"
 
     private val prefs: Preferences? by lazy {
         runCatching { Preferences.userRoot().node(NODE) }.getOrNull()
@@ -82,6 +87,21 @@ object SettingsStore {
         widgetOpacity = runCatching {
             prefs?.get(KEY_WIDGET_OPACITY, null)?.toFloatOrNull() ?: DEFAULT_WIDGET_OPACITY
         }.getOrDefault(DEFAULT_WIDGET_OPACITY).coerceIn(OPACITY_MIN, 1f),
+        backgroundColor = runCatching {
+            prefs?.get(KEY_BACKGROUND_COLOR, null)?.toLongOrNull()
+        }.getOrNull(),
+        backgroundImagePath = runCatching {
+            prefs?.get(KEY_BACKGROUND_IMAGE, null)
+        }.getOrNull()?.takeIf { it.isNotBlank() },
+        titleFontFamily = runCatching {
+            prefs?.get(KEY_TITLE_FONT, null)
+        }.getOrNull()?.takeIf { it.isNotBlank() },
+        bodyFontFamily = runCatching {
+            prefs?.get(KEY_BODY_FONT, null)
+        }.getOrNull()?.takeIf { it.isNotBlank() },
+        titleBarAlwaysWhite = runCatching {
+            prefs?.getBoolean(KEY_TITLE_BAR_WHITE, false) ?: false
+        }.getOrDefault(false),
     )
 
     /** 保存偏好。失败时静默忽略 —— 界面仍按当前会话的设置工作。 */
@@ -95,6 +115,15 @@ object SettingsStore {
             prefs?.putBoolean(KEY_AUTO_START, settings.autoStart)
             prefs?.put(KEY_MAIN_OPACITY, settings.mainOpacity.toString())
             prefs?.put(KEY_WIDGET_OPACITY, settings.widgetOpacity.toString())
+            settings.backgroundColor?.let { prefs?.put(KEY_BACKGROUND_COLOR, it.toString()) }
+                ?: prefs?.remove(KEY_BACKGROUND_COLOR)
+            settings.backgroundImagePath?.let { prefs?.put(KEY_BACKGROUND_IMAGE, it) }
+                ?: prefs?.remove(KEY_BACKGROUND_IMAGE)
+            settings.titleFontFamily?.let { prefs?.put(KEY_TITLE_FONT, it) }
+                ?: prefs?.remove(KEY_TITLE_FONT)
+            settings.bodyFontFamily?.let { prefs?.put(KEY_BODY_FONT, it) }
+                ?: prefs?.remove(KEY_BODY_FONT)
+            prefs?.putBoolean(KEY_TITLE_BAR_WHITE, settings.titleBarAlwaysWhite)
             prefs?.flush()
         }
     }
@@ -130,4 +159,17 @@ data class AppSettings(
     val mainOpacity: Float = 1f,
     /** 小窗不透明度（需求 4） */
     val widgetOpacity: Float = SettingsStore.DEFAULT_WIDGET_OPACITY,
+    /**
+     * 自定义背景颜色（ARGB 长整型），null = 跟随主题。
+     * 存 Long 而非 Color：数据层不应依赖 Compose 的 Color 类型。
+     */
+    val backgroundColor: Long? = null,
+    /** 自定义背景图片的绝对路径，null = 不使用图片背景。 */
+    val backgroundImagePath: String? = null,
+    /** 标题字体家族名（系统字体名），null = 跟随主题默认。 */
+    val titleFontFamily: String? = null,
+    /** 正文字体家族名，null = 跟随主题默认。 */
+    val bodyFontFamily: String? = null,
+    /** 顶部标题栏是否始终纯白（需求：统一标题栏颜色）。 */
+    val titleBarAlwaysWhite: Boolean = false,
 )

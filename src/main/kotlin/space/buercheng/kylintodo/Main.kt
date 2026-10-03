@@ -49,6 +49,7 @@ import space.buercheng.kylintodo.ui.AddTodoDialog
 import space.buercheng.kylintodo.ui.AppViewModel
 import space.buercheng.kylintodo.data.SettingsStore
 import space.buercheng.kylintodo.ui.SettingsController
+import space.buercheng.kylintodo.ui.SearchDialog
 import space.buercheng.kylintodo.ui.SettingsDialog
 import space.buercheng.kylintodo.ui.AppIcon
 import space.buercheng.kylintodo.ui.CalendarScreen
@@ -381,6 +382,9 @@ fun main(args: Array<String>) {
             KylinTodoTheme(
                 mode = settings.themeMode,
                 fontScale = settings.scaleValue,
+                titleFontFamily = settings.titleFontFamily,
+                bodyFontFamily = settings.bodyFontFamily,
+                backgroundColor = settings.backgroundColor,
             ) {
                 // 用 Column 包住：主题的 content 是单个可组合项，
                 // 直接并列两个兄弟节点会互相重叠而非上下排列。
@@ -399,6 +403,23 @@ fun main(args: Array<String>) {
                     Box(modifier = Modifier.weight(1f)) {
                         CalendarScreen(viewModel = viewModel, appName = settings.appName)
                     }
+                }
+
+                // 搜索弹窗（需求：右上角改为搜索按钮）
+                if (viewModel.searchVisible) {
+                    SearchDialog(
+                        query = viewModel.searchQuery,
+                        onQueryChange = viewModel::updateSearchQuery,
+                        allTags = viewModel.allTags,
+                        selectedTags = viewModel.searchTags,
+                        onToggleTag = viewModel::toggleSearchTag,
+                        selectedPriority = viewModel.searchPriority,
+                        onTogglePriority = viewModel::updateSearchPriority,
+                        results = viewModel.searchResults,
+                        onJumpTo = viewModel::jumpToSearchResult,
+                        onToggleTodo = viewModel::toggleCompleted,
+                        onDismiss = viewModel::dismissSearch,
+                    )
                 }
 
                 // 设置弹窗（需求反馈第 5 条）
@@ -600,6 +621,9 @@ private fun DesktopWidgetWindow(viewModel: AppViewModel, settings: SettingsContr
         KylinTodoTheme(
             mode = settings.themeMode,
             fontScale = settings.scaleValue,
+            titleFontFamily = settings.titleFontFamily,
+            bodyFontFamily = settings.bodyFontFamily,
+            backgroundColor = settings.backgroundColor,
         ) {
             DesktopWidgetScreen(
                 day = viewModel.selectedCalendarDay,

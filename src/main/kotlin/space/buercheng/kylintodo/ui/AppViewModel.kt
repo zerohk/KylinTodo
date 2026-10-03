@@ -378,6 +378,86 @@ class AppViewModel(
 
     fun dismissSettings() { settingsVisible = false }
 
+    // ---------------- 搜索（需求：右上角改为搜索按钮） ----------------
+
+    /** 搜索弹窗是否可见。 */
+    var searchVisible: Boolean by mutableStateOf(false)
+        private set
+
+    /** 搜索关键词。 */
+    var searchQuery: String by mutableStateOf("")
+        private set
+
+    /** 标签过滤（空集合 = 不过滤标签）。 */
+    var searchTags: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** 优先级过滤（null = 不过滤优先级）。 */
+    var searchPriority: TodoPriority? by mutableStateOf(null)
+        private set
+
+    fun openSearch() {
+        searchQuery = ""
+        searchTags = emptySet()
+        searchPriority = null
+        searchVisible = true
+    }
+
+    fun dismissSearch() { searchVisible = false }
+
+    /** 方法名用 update* 而非 set*：后者会与属性自动生成的 setter 冲突。 */
+    fun updateSearchQuery(q: String) { searchQuery = q }
+
+    fun toggleSearchTag(tag: String) {
+        searchTags = if (tag in searchTags) searchTags - tag else searchTags + tag
+    }
+
+    fun updateSearchPriority(p: TodoPriority?) {
+        searchPriority = if (p == searchPriority) null else p
+    }
+
+    /**
+     * 全部待办中可用的标签集合（供搜索界面展示可勾选的标签）。
+     *
+     * 只列出当前库中确实出现过的标签 —— 列一个完整标签表对用户没有意义，
+     * 用户只关心"我实际用过的那些标签"。
+     */
+    val allTags: Set<String> get() =
+        repository.findAll().flatMap { it.tags }.toSortedSet()
+
+    /**
+     * 按关键词、标签、优先级过滤后的结果。
+     *
+     * 关键词用**包含匹配**（不区分大小写）：待办文本通常是短句，
+     * 包含匹配比分词匹配更符合直觉 —— 用户搜"牛奶"应能命中"买牛奶"。
+     * 标签与优先级为"且"的关系，三者同时满足才命中。
+     */
+    val searchResults: List<TodoItem> get() {
+        val q = searchQuery.trim()
+        return repository.findAll().filter { item ->
+            val matchText = q.isEmpty() ||
+                item.text.contains(q, ignoreCase = true)
+            val matchTags = searchTags.isEmpty() ||
+                item.tags.containsAll(searchTags)
+            val matchPriority = searchPriority == null ||
+                item.priority == searchPriority
+            matchText && matchTags && matchPriority
+        }
+    }
+
+    /**
+     * 从搜索结果跳转到该待办所在的日期。
+     *
+     * 关闭搜索弹窗并把视图锚定到该日期：用户搜到一条待办后，
+     * 最自然的下一步就是"看看它那天还有什么安排"。
+     */
+    fun jumpToSearchResult(item: TodoItem) {
+        searchVisible = false
+        selectDate(item.date)
+        viewMode = CalendarViewMode.MONTH
+        refresh()
+    }
+
     /**
      * 导出全部待办数据（需求反馈第 5 条）。
      *

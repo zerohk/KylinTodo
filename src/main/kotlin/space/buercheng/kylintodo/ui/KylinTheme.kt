@@ -3,6 +3,7 @@ package space.buercheng.kylintodo.ui
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -221,9 +222,13 @@ fun subLabelTextStyle(): TextStyle = TextStyle(
  * @param fontScale 字号倍率，对应设置里的「字体大小」
  */
 @Composable
+@OptIn(ExperimentalTextApi::class)
 fun KylinTodoTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,
     fontScale: Float = 1.0f,
+    titleFontFamily: String? = null,
+    bodyFontFamily: String? = null,
+    backgroundColor: Long? = null,
     content: @Composable () -> Unit,
 ) {
     val dark = when (mode) {
@@ -232,13 +237,40 @@ fun KylinTodoTheme(
         ThemeMode.DARK -> true
     }
 
-    val typography = remember(fontScale) {
-        buildTypographyScaled(chineseFontFamily, fontScale)
+    // 解析用户选择的字体名。FontFamily(String) 是实验性 API（@ExperimentalTextApi），
+    // 但它是"按系统字体名构造"的唯一公开途径；解析失败时回退默认无衬线。
+    val titleFamily = remember(titleFontFamily) {
+        titleFontFamily?.let { FontFamily(it) } ?: chineseFontFamily
+    }
+    val bodyFamily = remember(bodyFontFamily) {
+        bodyFontFamily?.let { FontFamily(it) } ?: chineseFontFamily
+    }
+
+    // 标题用较大字号 + Medium 字重；正文用常规字号。
+    // 两者共用同一 Typography，但标题族与正文族分别注入，
+    // 由 buildTypographyScaled 生成两套并合并。
+    val typography = remember(fontScale, titleFamily, bodyFamily) {
+        buildTypographyScaled(bodyFamily, fontScale).let { body ->
+            body.copy(
+                headlineMedium = body.headlineMedium.copy(fontFamily = titleFamily),
+                titleLarge = body.titleLarge.copy(fontFamily = titleFamily),
+                titleMedium = body.titleMedium.copy(fontFamily = titleFamily),
+            )
+        }
+    }
+
+    val baseColors = if (dark) DarkColors else LightColors
+    // 自定义背景色：仅替换 background 与 surface（背景层），
+    // 保留 onSurface 等前景色不变，保证文字始终可读。
+    // 存储的 Long 是完整 ARGB 值，直接交给 Color(Long) 构造器即可。
+    val colors = remember(backgroundColor, dark) {
+        backgroundColor?.let { argb -> baseColors.copy(background = Color(argb), surface = Color(argb)) }
+            ?: baseColors
     }
 
     CompositionLocalProvider(LocalFontScale provides fontScale) {
         MaterialTheme(
-            colorScheme = if (dark) DarkColors else LightColors,
+            colorScheme = colors,
             typography = typography,
             content = content,
         )

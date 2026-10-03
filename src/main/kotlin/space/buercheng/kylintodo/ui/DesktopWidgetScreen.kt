@@ -27,6 +27,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +76,7 @@ fun DesktopWidgetScreen(
 ) {
     val scheme = MaterialTheme.colorScheme
     val doneCount = todos.count { it.isCompleted }
+    var pendingDelete by remember { mutableStateOf<TodoItem?>(null) }
 
     Box(
         modifier = modifier
@@ -195,11 +200,28 @@ fun DesktopWidgetScreen(
                             WidgetTodoRow(
                                 item = item,
                                 onToggle = { onToggle(item) },
-                                onDelete = { onDelete(item) },
+                                onDelete = { pendingDelete = item },
                             )
                         }
                     }
                 }
+            }
+
+            // 单条删除确认（用户要求：所有删除操作都要确认）。
+            // 放在这里而非 WidgetTodoRow 内：行组件不应持有弹窗状态，
+            // 否则 LazyColumn 滚动复用时会残留错误的确认目标。
+            pendingDelete?.let { target ->
+                ConfirmDialog(
+                    title = "确认删除",
+                    message = "将删除待办「${target.text.take(30)}」，此操作无法撤销。",
+                    confirmText = "删除",
+                    destructive = true,
+                    onConfirm = {
+                        pendingDelete = null
+                        onDelete(target)
+                    },
+                    onDismiss = { pendingDelete = null },
+                )
             }
         }
     }
