@@ -99,20 +99,41 @@ object AutoStartManager {
      *  - `TryExec`：桌面环境用它**校验可执行文件是否存在**，不存在就跳过该项
      *  - `Terminal=false`：缺省时个别实现会尝试在终端里运行
      *  - `Hidden=false`：显式声明未被隐藏
-     *  - `NoDisplay=false`：**不设 true**。规范里它只影响菜单显示，
-     *    但某些实现可能把它误当成"隐藏此项"而跳过。autostart 目录里的文件
-     *    本就不会出现在应用菜单（菜单项由 .deb 单独安装），设 false 更安全。
      *  - `X-GNOME-Autostart-enabled=true`：GNOME 系的启用标记，对其它实现无害
      *
-     * ## 关于 Exec 为什么**不加引号**
+     * ## ⚠️ `NoDisplay` 必须是 `false`，不要改成 `true`
+     *
+     * 这是**实测确认过的根因**，不是猜测。麒麟（UKUI）上曾出现开机自启动
+     * 完全静默失效，最终通过跨版本对照定位到这里：
+     *
+     * | 版本 | `Exec` | `NoDisplay` | 结果 |
+     * | --- | --- | --- | --- |
+     * | 1.1.5 | 无引号 | `true` | 未生效 |
+     * | 1.1.6 | 带引号 | `true` | 未生效 |
+     * | 1.1.7 | 无引号 | `false` | **生效** |
+     *
+     * 前两版 `Exec` 写法不同却都失效，共同点是 `NoDisplay=true`；
+     * 改为 `false` 后立即生效。
+     *
+     * 按规范，`NoDisplay` 的语义**只是"不在应用菜单里显示"**，
+     * autostart 项本不受影响。推测麒麟的会话实现复用了"收集可见应用"的
+     * 同一套过滤逻辑，于是 `NoDisplay=true` 的项在第一步就被排除了。
+     *
+     * 因此：**即使规范允许，也不要设成 `true`** —— 它会让自启动静默失效，
+     * 而且完全没有任何错误提示，极难排查。autostart 目录里的文件本就不会
+     * 出现在应用菜单（菜单项由 .deb 单独安装），设 `false` 没有任何副作用。
+     *
+     * ## 关于 `Exec` 为什么**不加引号**
      * 规范说 `Exec` 按 shell 风格分词、双引号会被剥离，因此
      * `Exec="/path/app"` 与 `Exec=/path/app` 等价。但实现未必都遵守：
      * 若某个环境只做简单切分而不剥离引号，就会去执行
      * `/path/app"`（把引号当成路径的一部分）从而失败。
      * 我们的安装路径 `/opt/dazhi-calendar/bin/dazhi-calendar` 不含空格，
      * 无需引号 —— 因此选择**最保守的写法**。
+     *
+     * （实测表明引号并非麒麟那次失效的根因，但它确实是应当消除的隐患。）
      */
-    private fun desktopEntry(exec: String): String {
+    internal fun desktopEntry(exec: String): String {
         return buildString {
             appendLine("[Desktop Entry]")
             appendLine("Type=Application")
@@ -121,6 +142,7 @@ object AutoStartManager {
             appendLine("Exec=$exec")
             appendLine("TryExec=$exec")
             appendLine("Terminal=false")
+            // 必须是 false —— 详见上方说明，true 会导致自启动静默失效
             appendLine("NoDisplay=false")
             appendLine("Hidden=false")
             appendLine("X-GNOME-Autostart-enabled=true")
