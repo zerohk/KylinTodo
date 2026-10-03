@@ -96,12 +96,21 @@ object AutoStartManager {
      *
      * 各键的作用（freedesktop 桌面项规范）：
      *  - `Type=Application` / `Exec`：必需
-     *  - `TryExec`：桌面环境用它**校验可执行文件是否存在**，不存在就跳过该项。
-     *    写上它能避免"文件缺失却毫无提示"的情况。
+     *  - `TryExec`：桌面环境用它**校验可执行文件是否存在**，不存在就跳过该项
      *  - `Terminal=false`：缺省时个别实现会尝试在终端里运行
-     *  - `Hidden=false`：显式声明未被隐藏（有些实现会因缺省值不确定而跳过）
-     *  - `NoDisplay=true`：不在应用菜单里重复出现（菜单项由 .deb 单独安装）
+     *  - `Hidden=false`：显式声明未被隐藏
+     *  - `NoDisplay=false`：**不设 true**。规范里它只影响菜单显示，
+     *    但某些实现可能把它误当成"隐藏此项"而跳过。autostart 目录里的文件
+     *    本就不会出现在应用菜单（菜单项由 .deb 单独安装），设 false 更安全。
      *  - `X-GNOME-Autostart-enabled=true`：GNOME 系的启用标记，对其它实现无害
+     *
+     * ## 关于 Exec 为什么**不加引号**
+     * 规范说 `Exec` 按 shell 风格分词、双引号会被剥离，因此
+     * `Exec="/path/app"` 与 `Exec=/path/app` 等价。但实现未必都遵守：
+     * 若某个环境只做简单切分而不剥离引号，就会去执行
+     * `/path/app"`（把引号当成路径的一部分）从而失败。
+     * 我们的安装路径 `/opt/dazhi-calendar/bin/dazhi-calendar` 不含空格，
+     * 无需引号 —— 因此选择**最保守的写法**。
      */
     private fun desktopEntry(exec: String): String {
         return buildString {
@@ -109,10 +118,10 @@ object AutoStartManager {
             appendLine("Type=Application")
             appendLine("Name=大智日历")
             appendLine("Comment=日历与待办事项")
-            appendLine("Exec=\"$exec\"")
+            appendLine("Exec=$exec")
             appendLine("TryExec=$exec")
             appendLine("Terminal=false")
-            appendLine("NoDisplay=true")
+            appendLine("NoDisplay=false")
             appendLine("Hidden=false")
             appendLine("X-GNOME-Autostart-enabled=true")
         }
