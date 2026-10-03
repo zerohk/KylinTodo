@@ -123,6 +123,32 @@ compose.desktop {
                 "java.management",
                 "java.xml",
             )
+
+            // JVM 内存参数（用户反馈麒麟上占用 270MB+，低配机器吃力）。
+            //
+            // 这是**打包后**应用的运行时参数：jpackage 会把它们写进
+            // `app/dazhi-calendar.cfg` 的 [JavaOptions]，启动时自动生效。
+            //
+            // 各参数的作用与取舍：
+            //  - `-Xmx512m`：默认最大堆是物理内存的 1/4（8G 机器即 2G），
+            //    JVM 会据此预留结构。本应用数据量极小（几百条待办），512M 绰绰有余。
+            //  - `-XX:+UseSerialGC`：**内存收益最大的一项**。G1 需要维护
+            //    remembered set、并发标记位图与多个 GC 线程栈，这些在小堆场景
+            //    纯属浪费。Serial GC 单线程、无额外结构，非常适合这种小桌面应用。
+            //  - `-XX:MaxMetaspaceSize=160m`：元空间默认无上限。本项目加载了
+            //    Compose/Skiko/Kotlin 大量类，给个上限促使其及时卸载无用类。
+            //  - `-XX:ReservedCodeCacheSize=64m`：代码缓存默认预留 240M，
+            //    实际用不到那么多。
+            //  - `-XX:CICompilerCount=2`：减少 JIT 编译线程（线程栈也占内存）。
+            //
+            // 注意：Skia 的 native 内存不受这些参数控制，那部分无法通过 JVM 调优降低。
+            jvmArgs += listOf(
+                "-Xmx512m",
+                "-XX:+UseSerialGC",
+                "-XX:MaxMetaspaceSize=160m",
+                "-XX:ReservedCodeCacheSize=64m",
+                "-XX:CICompilerCount=2",
+            )
         }
     }
 }

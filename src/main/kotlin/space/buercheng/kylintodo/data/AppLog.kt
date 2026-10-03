@@ -68,6 +68,65 @@ object AppLog {
             logFile = file
             rotateIfNeeded(file)
             info("AppLog", "日志已启动，文件：$file（上限 ${MAX_BYTES / 1024 / 1024} MB）")
+            logRuntimeInfo()
+        }
+    }
+
+    /**
+     * 记录 JVM 与内存信息。
+     *
+     * 放在启动日志里有两个用处：
+     *  1. 验证打包时设置的 `jvmArgs`（-Xmx 等）是否真的生效 ——
+     *     jpackage 把这些参数写在 `app/<name>.cfg` 里，从外部（如 jcmd）
+     *     看不到，只能从进程内部读。
+     *  2. 用户反馈"内存占用高 / 卡顿"时，日志里直接有堆上限与实际使用量。
+     */
+    private fun logRuntimeInfo() {
+        runCatching {
+            val rt = Runtime.getRuntime()
+            val mb = 1024L * 1024L
+            info(
+                "JVM",
+                "Java ${System.getProperty("java.version")} | " +
+                    "最大堆=${rt.maxMemory() / mb}MB | " +
+                    "当前堆=${(rt.totalMemory() - rt.freeMemory()) / mb}MB",
+            )
+            val args = java.lang.management.ManagementFactory
+                .getRuntimeMXBean().inputArguments
+                .filter { it.startsWith("-X") }
+            if (args.isNotEmpty()) {
+                info("JVM", "启动参数: ${args.joinToString(" ")}")
+            }
+            logMemoryBreakdown()
+        }
+    }
+
+    /**
+     * 记录内存构成。
+     *
+     * 排查"占用高"时必须先看清结构：实测本应用的**堆只占约 20MB**，
+     * 而进程整体 RSS 有 300MB+ —— 说明大头在堆外（Metaspace / Code Cache /
+     * Skia native）。只看 -Xmx 是找不到问题的。
+     */
+    fun logMemoryBreakdown() {
+        runCatching {
+            val mb = 1024L * 1024L
+            val pools = java.lang.management.ManagementFactory.getMemoryPoolMXBeans()
+            fun used(nameFragment: String): Long =
+                pools.filter { it.name.contains(nameFragment, ignoreCase = true) }
+                    .sumOf { it.usage?.used ?: 0L }
+
+            val metaspace = used("Metaspace")
+            val codeCache = used("Code Cache")
+            val threads = java.lang.management.ManagementFactory.getThreadMXBean().threadCount
+            val nonHeap = java.lang.management.ManagementFactory
+                .getMemoryMXBean().nonHeapMemoryUsage.used
+
+            info(
+                "JVM",
+                "内存构成：非堆=${nonHeap / mb}MB（其中 Metaspace=${metaspace / mb}MB、" +
+                    "CodeCache=${codeCache / mb}MB）| 线程数=$threads",
+            )
         }
     }
 

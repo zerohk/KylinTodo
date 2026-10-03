@@ -38,6 +38,7 @@ import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import space.buercheng.kylintodo.data.AppLog
 import space.buercheng.kylintodo.data.AppPaths
+import space.buercheng.kylintodo.data.AutoStartManager
 import space.buercheng.kylintodo.data.DesktopDataExporter
 import space.buercheng.kylintodo.data.DesktopHolidayTransfer
 import space.buercheng.kylintodo.data.SingleInstanceGuard
@@ -165,6 +166,21 @@ fun main(args: Array<String>) {
     // 出问题时也就无从反馈。尽早初始化才能记下启动阶段的失败。
     AppLog.init()
     AppLog.installCrashHandler()
+
+    // 记录开机自启动项的实际状态（含文件内容与推断出的启动器路径）。
+    // 用户反馈"自启动没生效"时，这条日志能直接说明问题出在
+    // 「文件没写对」还是「桌面环境没执行」，不必反复猜测。
+    runCatching { AppLog.info("AutoStart", AutoStartManager.describeCurrentState()) }
+
+    // 渲染模式引导：用户若选择「省内存模式」（软件渲染），需要带不同的
+    // 环境变量重新启动自己（Skiko 只在初始化时读取渲染模式，运行时改不了）。
+    //
+    // **必须放在获取单实例锁之前**：重启发生在未持锁时，
+    // 就不会出现"旧进程还握着锁、新进程抢不到而直接退出"的问题。
+    if (RenderModeBootstrap.relaunchIfNeeded(args)) {
+        // 新进程已拉起，当前进程安静退出（退出码 0，这不是错误）
+        return
+    }
 
     val options = parseArgs(args)
 

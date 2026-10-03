@@ -65,16 +65,23 @@ object AutoStartManager {
 
         return if (enabled) {
             Files.createDirectories(autostartDir)
-            Files.writeString(target, desktopEntry())
+
+            // 写入前先校验启动器路径真实存在。
+            // 之前这里只静默写文件：路径推断错了也照写，桌面环境找不到
+            // 可执行文件就静默跳过 —— 用户完全无从判断哪里出了问题。
+            val exec = currentExecutablePath()
+            if (exec == null || !File(exec).exists()) {
+                val msg = "无法确定程序启动路径（推断为 $exec），已跳过。" +
+                    "请改用手动方式添加自启动。"
+                AppLog.warn("AutoStart", msg)
+                return msg
+            }
+
+            Files.writeString(target, desktopEntry(exec))
             // 部分桌面环境（MATE / 旧版 GNOME）要求 .desktop 有执行位才视为
             // "受信任"并执行；没有执行位会静默忽略。加上更稳妥。
             runCatching { target.toFile().setExecutable(true) }
-            AppLog.info(
-                "AutoStart",
-                "已写入自启动项：$target（Exec=${
-                    desktopEntry().lines().first { it.startsWith("Exec=") }
-                }）",
-            )
+            AppLog.info("AutoStart", "已写入自启动项：$target\n${desktopEntry(exec)}")
             null
         } else {
             // 不存在也算成功：用户的意图是"不要自启动"，已是该状态
@@ -84,18 +91,44 @@ object AutoStartManager {
         }
     }
 
-    private fun desktopEntry(): String {
-        val exec = currentExecutablePath() ?: "dazhi-calendar"
+    /**
+     * 生成自启动项内容。
+     *
+     * 各键的作用（freedesktop 桌面项规范）：
+     *  - `Type=Application` / `Exec`：必需
+     *  - `TryExec`：桌面环境用它**校验可执行文件是否存在**，不存在就跳过该项。
+     *    写上它能避免"文件缺失却毫无提示"的情况。
+     *  - `Terminal=false`：缺省时个别实现会尝试在终端里运行
+     *  - `Hidden=false`：显式声明未被隐藏（有些实现会因缺省值不确定而跳过）
+     *  - `NoDisplay=true`：不在应用菜单里重复出现（菜单项由 .deb 单独安装）
+     *  - `X-GNOME-Autostart-enabled=true`：GNOME 系的启用标记，对其它实现无害
+     */
+    private fun desktopEntry(exec: String): String {
         return buildString {
             appendLine("[Desktop Entry]")
             appendLine("Type=Application")
             appendLine("Name=大智日历")
             appendLine("Comment=日历与待办事项")
-            appendLine("Exec=$exec")
-            // 自启动项不需要出现在应用菜单里（菜单项由 .deb 单独安装）
+            appendLine("Exec=\"$exec\"")
+            appendLine("TryExec=$exec")
+            appendLine("Terminal=false")
             appendLine("NoDisplay=true")
-            // 标记来源，便于用户或我们日后识别这是由应用自己写入的
+            appendLine("Hidden=false")
             appendLine("X-GNOME-Autostart-enabled=true")
+        }
+    }
+
+    /** 当前自启动项的状态描述（供日志与用户反馈问题使用）。 */
+    fun describeCurrentState(): String {
+        if (!isLinux()) return describeLocation()
+        val configHome = System.getenv("XDG_CONFIG_HOME")
+            ?.takeIf { it.isNotBlank() }
+            ?: (System.getProperty("user.home") + "/.config")
+        val target = Paths.get(configHome, "autostart", DESKTOP_FILE_NAME)
+        return if (Files.exists(target)) {
+            "已启用（$target）：\n${runCatching { Files.readString(target) }.getOrDefault("")}"
+        } else {
+            "未启用（$target 不存在）"
         }
     }
 

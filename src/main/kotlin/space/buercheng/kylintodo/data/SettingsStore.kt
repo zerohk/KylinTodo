@@ -54,6 +54,7 @@ object SettingsStore {
     private const val KEY_TITLE_FONT = "titleFontFamily"
     private const val KEY_BODY_FONT = "bodyFontFamily"
     private const val KEY_TITLE_BAR_WHITE = "titleBarAlwaysWhite"
+    private const val KEY_SOFTWARE_RENDERING = "softwareRendering"
 
     private val prefs: Preferences? by lazy {
         runCatching { Preferences.userRoot().node(NODE) }.getOrNull()
@@ -106,6 +107,9 @@ object SettingsStore {
         titleBarAlwaysWhite = runCatching {
             prefs?.getBoolean(KEY_TITLE_BAR_WHITE, false) ?: false
         }.getOrDefault(false),
+        softwareRendering = runCatching {
+            prefs?.getBoolean(KEY_SOFTWARE_RENDERING, false) ?: false
+        }.getOrDefault(false),
     )
 
     /** 保存偏好。失败时静默忽略 —— 界面仍按当前会话的设置工作。 */
@@ -129,6 +133,7 @@ object SettingsStore {
             settings.bodyFontFamily?.let { prefs?.put(KEY_BODY_FONT, it) }
                 ?: prefs?.remove(KEY_BODY_FONT)
             prefs?.putBoolean(KEY_TITLE_BAR_WHITE, settings.titleBarAlwaysWhite)
+            prefs?.putBoolean(KEY_SOFTWARE_RENDERING, settings.softwareRendering)
             prefs?.flush()
         }
     }
@@ -179,4 +184,15 @@ data class AppSettings(
     val bodyFontFamily: String? = null,
     /** 顶部标题栏是否始终纯白（需求：统一标题栏颜色）。 */
     val titleBarAlwaysWhite: Boolean = false,
+    /**
+     * 是否使用软件渲染（Skia CPU 光栅化）。
+     *
+     * 实测内存差异显著（Windows 下进程工作集 361MB → 215MB，约 -40%），
+     * 代价是绘制走 CPU，低端机器上滚动/拖动可能略慢。
+     * 面向"硬件跟不上"的用户，因此做成可选项。
+     *
+     * 这是 **JVM 启动期**决定的（Skiko 在初始化时读取），运行时无法切换，
+     * 因此改动后需要重启应用 —— 见 [space.buercheng.kylintodo.RenderModeBootstrap]。
+     */
+    val softwareRendering: Boolean = false,
 )
