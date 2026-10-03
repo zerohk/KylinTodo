@@ -33,6 +33,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.platform.testTag
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -878,7 +881,7 @@ private fun BackgroundColorPicker(
 }
 
 /**
- * 字体选择器：列出系统已安装字体（取前若干个常用项）。
+ * 字体选择器：下拉框，列出**全部**系统已安装字体。
  *
  * 注意：系统字体名来自 AWT 探测（`GraphicsEnvironment`），可能与 Compose/Skia
  * 实际可渲染的字体不完全一致；解析失败会静默回退默认字体，不会崩溃。
@@ -889,17 +892,11 @@ private fun FontPicker(
     current: String?,
     onPick: (String?) -> Unit,
 ) {
-    val fonts = remember {
-        runCatching {
-            java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
-                .availableFontFamilyNames
-                .toList()
-                .sorted()
-        }.getOrDefault(emptyList())
-    }
-    // 只展示前 12 个常用字体，避免弹窗过长；用户可按名搜索的场景暂不覆盖。
-    val options = (listOf<String?>(null) + fonts.take(12))
-        .map { it to (it ?: "跟随主题") }
+    var expanded by remember { mutableStateOf(false) }
+
+    // 读取全部系统字体（复用 KylinTheme 暴露的探测结果），按名称排序。
+    // 「跟随主题」作为第一项（null）。
+    val fonts = remember { availableSystemFontFamilies.toList().sorted() }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -911,37 +908,35 @@ private fun FontPicker(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.width(64.dp),
         )
-        // 用滚动行承载字体选项，避免字体名过长撑破布局。
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-                options.forEach { (family, text) ->
-                    val selected = family == current
-                    val scheme = MaterialTheme.colorScheme
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (selected) scheme.primary.copy(alpha = 0.16f)
-                                else scheme.surfaceVariant.copy(alpha = 0.35f)
-                            )
-                            .border(
-                                width = if (selected) 1.5.dp else 1.dp,
-                                color = if (selected) scheme.primary else scheme.outline.copy(alpha = 0.4f),
-                                shape = RoundedCornerShape(8.dp),
-                            )
-                            .clickableNoRipple { onPick(family) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = text,
-                            fontSize = 12.sp,
-                            color = if (selected) scheme.primary else scheme.onSurfaceVariant,
-                        )
-                    }
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = current ?: "跟随主题",
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                // 高度受限 + 可滚动，避免系统字体过多时菜单溢出屏幕
+                modifier = Modifier.heightIn(max = 320.dp),
+            ) {
+                DropdownMenuItem(
+                    text = { Text("跟随主题", fontSize = 13.sp) },
+                    onClick = { onPick(null); expanded = false },
+                )
+                fonts.forEach { family ->
+                    DropdownMenuItem(
+                        text = { Text(family, fontSize = 13.sp) },
+                        onClick = { onPick(family); expanded = false },
+                    )
                 }
             }
+        }
     }
 }

@@ -11,6 +11,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -116,13 +118,16 @@ private val chineseFontCandidates = listOf(
  * 在 Windows 与麒麟系统上，SansSerif 会映射到系统无衬线字体（微软雅黑 /
  * Noto Sans CJK / 文泉驿），Skia 会自动完成 CJK 字形回退。
  */
-private val availableFontFamilies: Set<String> by lazy {
+/** 系统实际可用的字体族名集合（供设置界面下拉选择字体）。 */
+val availableSystemFontFamilies: Set<String> by lazy {
     runCatching {
         java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
             .availableFontFamilyNames
             .toSet()
     }.getOrDefault(emptySet())
 }
+
+private val availableFontFamilies: Set<String> by lazy { availableSystemFontFamilies }
 
 /** 当前探测到的中文字体名，便于在麒麟真机上排查字体问题。 */
 val selectedChineseFontName: String by lazy {
@@ -260,12 +265,34 @@ fun KylinTodoTheme(
     }
 
     val baseColors = if (dark) DarkColors else LightColors
-    // 自定义背景色：仅替换 background 与 surface（背景层），
-    // 保留 onSurface 等前景色不变，保证文字始终可读。
-    // 存储的 Long 是完整 ARGB 值，直接交给 Color(Long) 构造器即可。
+    // 自定义背景色：不能只替换 background/surface 而保留原前景色 ——
+    // 否则用户选浅色背景但处于深色主题时，浅色文字会白底白字看不清。
+    //
+    // 正确做法（WCAG 对比度原则）：根据**背景的亮度**决定整套前景色。
+    // 亮背景配深色前景（LightColors 的 onSurface 系列），
+    // 暗背景配浅色前景（DarkColors 的 onSurface 系列），
+    // 而 primary/error 等品牌色保持不变 —— 它们本就在两套主题里都做了对比度适配。
     val colors = remember(backgroundColor, dark) {
-        backgroundColor?.let { argb -> baseColors.copy(background = Color(argb), surface = Color(argb)) }
-            ?: baseColors
+        backgroundColor?.let { argb ->
+            val bg = Color(argb)
+            // 亮度 > 0.5 视为亮背景，用深色前景；否则用浅色前景
+            val lightBackground = bg.luminance() > 0.5f
+            val foregroundSource = if (lightBackground) LightColors else DarkColors
+            // surfaceVariant 也要跟随背景：它是输入框、chip 等浅一层/深一层的底色，
+            // 若沿用原主题会与自定义背景冲突。这里用背景色向黑/白轻微偏移。
+            val variant = if (lightBackground) {
+                androidx.compose.ui.graphics.lerp(bg, Color.Black, 0.06f)
+            } else {
+                androidx.compose.ui.graphics.lerp(bg, Color.White, 0.12f)
+            }
+            foregroundSource.copy(
+                background = bg,
+                surface = bg,
+                surfaceVariant = variant,
+                // 背景亮度反推 outline：亮背景用深灰描边，暗背景用浅灰描边
+                outline = if (lightBackground) Color(0xFF9CA3AF) else Color(0xFF6B7280),
+            )
+        } ?: baseColors
     }
 
     CompositionLocalProvider(LocalFontScale provides fontScale) {
