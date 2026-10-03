@@ -104,6 +104,9 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
     /** 小窗是否始终置顶（需求 5）。小窗按钮与设置界面都能改。 */
     var widgetPinned by mutableStateOf(initial.widgetPinned)
 
+    /** 主窗口是否始终置顶。 */
+    var mainWindowPinned by mutableStateOf(initial.mainWindowPinned)
+
     /** 开机自启动（需求 6）。改动会同时写入系统自启动项。 */
     var autoStart by mutableStateOf(initial.autoStart)
 
@@ -140,6 +143,7 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
         scale: FontScale = fontScale,
         widgetOnStart: Boolean = widgetVisibleOnStart,
         pinned: Boolean = widgetPinned,
+        mainPinned: Boolean = mainWindowPinned,
         auto: Boolean = autoStart,
         mainAlpha: Float = mainOpacity,
         widgetAlpha: Float = widgetOpacity,
@@ -154,6 +158,7 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
         fontScale = scale
         widgetVisibleOnStart = widgetOnStart
         widgetPinned = pinned
+        mainWindowPinned = mainPinned
         autoStart = auto
         // 夹取到合法区间：滑块理论上不会越界，但配置可能被手工改坏
         mainOpacity = mainAlpha.coerceIn(SettingsStore.OPACITY_MIN, 1f)
@@ -170,6 +175,7 @@ class SettingsController(initial: space.buercheng.kylintodo.data.AppSettings) {
                 fontScale = scale,
                 widgetVisibleOnStart = widgetOnStart,
                 widgetPinned = widgetPinned,
+                mainWindowPinned = mainWindowPinned,
                 autoStart = autoStart,
                 mainOpacity = mainOpacity,
                 widgetOpacity = widgetOpacity,

@@ -367,6 +367,8 @@ fun main(args: Array<String>) {
             // 透明窗口：配合内容层的 windowOpacity(alpha) 实现「整窗相对系统的
             // 透明度」—— 不再只是内容变淡，而是窗口后面能真正透出来。
             transparent = true,
+            // 主窗口置顶：跟随设置，标题栏图钉按钮可切换
+            alwaysOnTop = settings.mainWindowPinned,
             // 全局快捷键：Ctrl+Shift+D 开关调试状态栏。
             // 用 Preview 阶段拦截，保证任何子组件都不会先消费掉这个组合键。
             onPreviewKeyEvent = { event ->
@@ -392,11 +394,13 @@ fun main(args: Array<String>) {
                 // 这里就是「整窗相对系统的透明度」，而不再只是内容变淡。
                 Box(modifier = Modifier.fillMaxSize().windowOpacity(settings.mainOpacity)) {
                     Column(modifier = Modifier.fillMaxSize()) {
-                        // 自绘标题栏：拖动移动 + 最小化 + 关闭
+                        // 自绘标题栏：拖动移动 + 置顶 + 最小化 + 关闭
                         WindowTitleBar(
                             title = settings.appName,
                             windowState = windowState,
                             onClose = ::exitApplication,
+                            pinned = settings.mainWindowPinned,
+                            onTogglePin = { settings.update(mainPinned = !settings.mainWindowPinned) },
                         )
 
                         // 调试状态栏：把 anchor / selected / 网格范围等关键状态平铺显示，

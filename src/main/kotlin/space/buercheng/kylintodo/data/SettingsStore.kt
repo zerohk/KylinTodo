@@ -45,6 +45,7 @@ object SettingsStore {
     private const val KEY_WIDGET_VISIBLE = "widgetVisibleOnStart"
     private const val KEY_APP_NAME = "appDisplayName"
     private const val KEY_WIDGET_PINNED = "widgetPinned"
+    private const val KEY_MAIN_PINNED = "mainWindowPinned"
     private const val KEY_AUTO_START = "autoStart"
     private const val KEY_MAIN_OPACITY = "mainOpacity"
     private const val KEY_WIDGET_OPACITY = "widgetOpacity"
@@ -75,6 +76,9 @@ object SettingsStore {
         widgetPinned = runCatching {
             prefs?.getBoolean(KEY_WIDGET_PINNED, true) ?: true
         }.getOrDefault(true),
+        mainWindowPinned = runCatching {
+            prefs?.getBoolean(KEY_MAIN_PINNED, false) ?: false
+        }.getOrDefault(false),
         autoStart = runCatching {
             prefs?.getBoolean(KEY_AUTO_START, false) ?: false
         }.getOrDefault(false),
@@ -112,6 +116,7 @@ object SettingsStore {
             prefs?.put(KEY_FONT_SCALE, settings.fontScale.name)
             prefs?.putBoolean(KEY_WIDGET_VISIBLE, settings.widgetVisibleOnStart)
             prefs?.putBoolean(KEY_WIDGET_PINNED, settings.widgetPinned)
+            prefs?.putBoolean(KEY_MAIN_PINNED, settings.mainWindowPinned)
             prefs?.putBoolean(KEY_AUTO_START, settings.autoStart)
             prefs?.put(KEY_MAIN_OPACITY, settings.mainOpacity.toString())
             prefs?.put(KEY_WIDGET_OPACITY, settings.widgetOpacity.toString())
@@ -153,6 +158,8 @@ data class AppSettings(
     val widgetVisibleOnStart: Boolean = false,
     /** 桌面小窗是否始终置顶（需求 5） */
     val widgetPinned: Boolean = true,
+    /** 主窗口是否始终置顶 */
+    val mainWindowPinned: Boolean = false,
     /** 开机自启动（需求 6） */
     val autoStart: Boolean = false,
     /** 主窗口不透明度（需求 4），1.0 = 完全不透明 */
