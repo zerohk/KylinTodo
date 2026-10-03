@@ -205,7 +205,9 @@ fun DayInfoDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SectionTitle("当天待办 ${todosOfSelectedDate.size}")
                 Spacer(modifier = Modifier.weight(1f))
-                if (todosOfSelectedDate.isNotEmpty()) {
+                // 与右侧栏同一规则：退出多选在任何情况下都要可见（全选删除后
+                // 列表为空也不能卡在多选模式），进入多选才要求有待办。
+                if (viewModel.todoSelectionMode || todosOfSelectedDate.isNotEmpty()) {
                     TextButton(
                         onClick = {
                             viewModel.changeTodoSelectionMode(!viewModel.todoSelectionMode)

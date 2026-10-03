@@ -397,9 +397,14 @@ private fun TodoSidePanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Box(modifier = Modifier.weight(1f))
-            // 多选开关（需求 3）。有未完成或已完成的待办时才显示 ——
-            // 列表为空时进入多选没有意义，按钮只会占位置。
-            if (viewModel.selectedDateTodos.isNotEmpty()) {
+            // 多选开关（需求 3）。
+            //
+            // 显示条件分两种：
+            //  - **退出多选**：只要处于多选模式就必须显示 —— 即使全选删除后
+            //    列表空了也不能让用户卡在多选模式里出不去（这是个已修复的 bug）。
+            //  - **进入多选**：仅当有未完成或已完成的待办时才显示 ——
+            //    空列表进入多选没有意义。
+            if (viewModel.todoSelectionMode || viewModel.selectedDateTodos.isNotEmpty()) {
                 TooltipIconButton(
                     icon = if (viewModel.todoSelectionMode) {
                         Icons.Filled.Close
